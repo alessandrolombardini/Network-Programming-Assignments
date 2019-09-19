@@ -1,0 +1,76 @@
+i messaggi di [PSH,ACK] sono i pacchetti che il server invia al client
+questi messaggi vengono confermati dal client con dei missaggi di [ACK] (acknowledge)
+
+il messaggio finale di questo trasferimento è quello con il tag fin fixato: [FIN,PSH, ACK]. questo messaggio indica che il server ha terminato la trasmissione dei dati.
+per il protocollo tcp la trasmissione è asimmetrica, cioè il server dice che ha finito i pacchetti da trasmettere ma questo nno implica il contrario (il client può avere cose da dire al server) e quindi chiude il canale di trasmissione.
+il client risponde inviando un [FIN,ACK] al server per dirgli di aver ricevuto il messaggio e affermando che non ha più nulla da trasmettere.
+solitamente infatti sotto alla chiusura da parte del client si ricede la risposta dal server dicendo che il trasferimento è stato completato.
+
+
+quando la connessione viene chiusa viene mandata una richiesta dal client che riceve un messaggio [FIN,ACK] dal server come risposta, il client risponde di aver ricevuto il messaggio con un [ACK] e a sua volta chiude con [FIn,ACK] a cui il server risponde con un [ACK]
+
+una connessione tcp ha:
+una connessione sulla porta 21 attraerso la quale vengono scambiati i comand
+una o più connessioni che vengono aperte se c'è transito di dati da un verso o dall'altro.
+
+per accedere al server ubuntu:
+ftp ftp.ubuntu.com
+anonymous 
+password
+
+si può navigare al suo interno come in un filesystem e per ricevere dati si può fare get di un file
+
+DNS
+database distribuito di informazione & protocollo di livello applicativo per fare la risoluzione dei nomi.
+(in realtà fa molte altre cose ma a noi interessa solo questa)
+
+un indirizzo ip è composto da 4 decimali, in binario questo indirizzo è composto da 32bit suddiviso in gruppi di 8 bit.
+
+questa notazione puntata voleva essere una gerarchia, perchè inizialmente (ce l'ha tutt'ora ma se ne fa un uso diverso) era nato come concetto di classe.
+siccome poi è nata l'esigenza di partizionare le reti (più sottoreti di una rete principale o il contrario, subnetting/supernetting) questa cosa poteva essere fatta in maniera limitata,
+questa notazione di classe è stata rilassata. 
+
+la gerarchia degli indirizzi ip si esplora a portire da destra:
+www.informatica.unibo.it
+top-level-domain - 1° livello: it
+2° livello/sottodominio di it: unibo
+server autoritativi - 3° livello/sottodominio di it.unibo: informatica
+
+deisnet.deis.unibo.it
+scendere dal dominio di terzo livello in giu, identifica un host ben preciso all'interno del dominio it.unibo.deis
+quindi deis è un host specifico
+
+questo livello non è importante che vengano registrati diversamente da quelli di terzo livello, perchè è qualcun'altro che ci fornirà quella risorsa.
+
+
+
+i root server sono i server che stanno inc ima alla gerarchia di risoluzione dei nomi.
+nel mondo ci sono 13 root servers(con tante copie) che garantiscono la resilienza.
+
+oltre che a contenere l'indirizzo del dns, è possibile aggiungere all'interno di questo file un mapping 1:1 di indirizzi simbolici logici conosciuti (name resolver locale, primma di interrogare i dns vengono richieste le risorse al name resolver locale che è quel file)
+queste informazioni possono essere aggiornate in automatico (messe in cache) dopo la prima volta che viene fatta la richiesta di un certo indirizzo
+
+risoluzione ricorsiva:
+il name server locale non conosce l'indirizzo simbolico e quindi contatta uno dei server di route per ottenere l'indirizzo ip del server che vogliamo contattare.
+questa richiesta fatta dal name server locale, il top level domain la ridirige verso un server di secondo livello, il quale fa esattamente la stessa cosa. una volta che la risposta è collezzionata
+i messaggi di response fanno esattamente il percorso inverso, tornando al name server locale e ottenendo la risposta. 
+
+modalità iterativa:
+anzichè esserci la propagazione della richiesta, il name server locale deve contattare prima il top level domain, che risponde al name server comunicandogli chi dovrà contattare il server locale.
+quest'ultimo farà iterativamente la stessa cosa finchè non risolve l'indirizzo simbolico.
+
+il DNS usa il protocollo UDP sulla porta 53. per conoscere i messaggi di questa porta posso mettere il filtro udp.port == 53.
+l'indirizzo di destinazione della query di richiesta del DNS è quello del namerserver locale. il dns risponde a questa query con una serie di indirizzi a cui si piò accedere. di solito viene scelto il primo, ma se questo non risponde si prosegue con la lista di indirizzi.
+
+
+1° ASSIGNMENT
+analisi di una sessione di dialogo FTP
+1° TASK - aprire il terminale e wireshark e fare la sessione di dialogo, salvando la cattura. 
+
+
+---------------------------
+
+se non si riesce ad eseguire conessioni e comandi sul server ftp potrebbe essere a casa del firewall dei pc windows, che è da disabilitare se da dei problemi. In casi particolari potrebbe dover essere necessario disabilitare quello del router.
+Consiglio: utilizzare macchine unix per fare questo lavoro, ma anche se macchine virtuali su windows possono avere lo stesso problema.
+
+
