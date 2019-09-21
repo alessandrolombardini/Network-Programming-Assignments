@@ -12,6 +12,17 @@
 
 
 //Service structure definition goes here
+typedef struct  dataStruct {
+	char[] transportProtocol;
+	char[] serviceMode;
+	char[] servicePort;
+	char[] serviceFullPathName;
+	char[] serviceName;
+	int socketFileDescriptor;
+	int pid;
+} data;
+
+data[] dataVector;
 
 
 //Function prototype devoted to handle the death of the son process
