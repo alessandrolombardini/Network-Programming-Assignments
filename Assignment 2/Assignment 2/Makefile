@@ -7,4 +7,8 @@ superserver.o:   superserver.c
 		gcc -c ${CFLAGS} superserver.c
 
 
+.PHONY: clean
+
+clean: 
+	-rm -f superserver.exe  superserver.o
 
