@@ -7,7 +7,9 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include "myfunction.h"
+
 #define MAX_BUF_SIZE 1024 // Maximum size of UDP messages
+#define SERVER_PORT 9876 // Server port
 
 int main(int argc, char *argv[]){
   struct sockaddr_in server_addr; // struct containing server address information
@@ -22,12 +24,6 @@ int main(int argc, char *argv[]){
   char receivedData [MAX_BUF_SIZE]; // Data to be received
   char sendData [MAX_BUF_SIZE]; // Data to be sent 
   
-  if (argc != 3) {
-		printf("\nErrore numero errato di parametri\n");
-		printf("\n%s <server IP (dotted notation)> <server port>\n", argv[0]);
-		exit(1);
-  }
-  
   sfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   
   if (sfd < 0){
@@ -36,8 +32,8 @@ int main(int argc, char *argv[]){
   }
   
   server_addr.sin_family = AF_INET;
-  server_addr.sin_port = htons(atoi(argv[2]));
-  server_addr.sin_addr.s_addr = inet_addr(argv[1]);
+  server_addr.sin_port = htons(SERVER_PORT);
+  server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
   
   serv_size = sizeof(server_addr);
   
@@ -49,8 +45,11 @@ int main(int argc, char *argv[]){
   	if(strcmp(sendData, "exit") == 0){
   		stop = 1;
   	}
-
+  	//strcat(sendData, "\0");
   	msgLen = countStrLen(sendData);
+  
+  	//serv_size = sizeof(server_addr);
+  	//byteSent = sendto(sfd, sendData, MAX_BUF_SIZE, 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
   	byteSent = sendto(sfd, sendData, msgLen, 0, (struct sockaddr *) &server_addr, sizeof(server_addr));
   	printf("Bytes sent to server: %zd\n", byteSent);
   	

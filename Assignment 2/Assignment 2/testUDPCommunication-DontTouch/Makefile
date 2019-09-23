@@ -1,10 +1,4 @@
-all:		superserver.exe clientUDP.exe serverUDP.exe
-
-superserver.exe:     superserver.o
-		gcc ${CFLAGS} -o superserver.exe superserver.o
-
-superserver.o:   superserver.c
-		gcc -c ${CFLAGS} superserver.c
+all:		clientUDP.exe serverUDP.exe
 
 clientUDP.exe:     udpClient.o 
 		gcc ${CFLAGS} -o udpClient.exe udpClient.o 
@@ -21,5 +15,5 @@ udpServer.o:   udpServer.c
 .PHONY: clean
 
 clean: 
-	-rm -f superserver.exe  superserver.o
+	-rm -f *.exe  *.o
 
