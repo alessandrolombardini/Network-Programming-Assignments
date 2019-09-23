@@ -29,6 +29,9 @@ serviceNode services[maxNumberOfService];
 
 //Function prototype devoted to handle the death of the son process
 void handle_signal (int sig);
+//Other prototype 
+void readConfiguration();
+void printConfiguration();
 
 // handle_signal implementation
 void handle_signal (int sig){
@@ -65,9 +68,66 @@ void readConfiguration() {
 
 void printConfiguration() {
 	for(int i = 0; i < numberOfServicesLoaded; i++){
-		printf("%s%s%s%s\n", services[i].serviceName, services[i].transportProtocol, services[i].servicePort, services[i].serviceMode);
+		printf("%s %s %s %s\n", services[i].serviceName, services[i].transportProtocol, services[i].servicePort, services[i].serviceMode);
 	}
 }
+
+void startServices() {
+
+}
+
+void startTCP(int port) {
+	struct sockaddr_in server_addr;
+	struct sockaddr_in client_add;
+	int serverFD;
+	int acceptFD;
+	int bindResult;
+	int listenResult;
+	ssize_t byteRecv;
+	ssize_t byteSent;
+
+	// Open server socket
+	serverFD = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if(serverFD < 0){
+		perror("Socket error");
+		exit(EXIT_FAILURE);
+	}
+	// Initilize server address information
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(port);
+	server_addr.sin_addr.s_addr = INADDR_ANY;
+
+
+
+
+}
+
+void startUDP(int port){
+	struct sockaddr_in server_addr;
+	struct sockaddr_in client_add;
+	int serverFD;
+	ssize_t byteRecv;
+	ssize_t byteSent;
+	
+	// Open server socket
+	serverFD = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if(serverFD < 0){
+		perror("Socket error");
+		exit(EXIT_FAILURE);
+	}
+	// Initilize server address information
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(port);
+	server_addr.sin_addr.s_addr = INADDR_ANY;
+	// Binding socket
+	int resBinding = bind(serverFD, (struct sockaddr *) &server_addr, sizeof(server_addr));
+	if(resBinding < 0){
+		perror("Binding error");
+		exit(EXIT_FAILURE);
+	}
+}
+
+
 
 int  main(int argc,char **argv,char **env){ // NOTE: env is the variable to be passed, as last argument, to execle system-call
 	// Other variables declaration goes here
