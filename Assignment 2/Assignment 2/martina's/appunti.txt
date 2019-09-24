@@ -1,0 +1,97 @@
+Per i servizi sequenziali dovrà comparire la stringa wait,
+mentre per quelli non corncorrenti dovrà apparire no-wait.
+
+./app:	full path dell'applicazione, che si assume che è localizzata nella 
+	stessa directory in questo caso. erò potrebbe essere anche un percorso
+	assoluto, che specifica dov'è l'eseguibile dell'applicazione.
+
+udp:	servizio fornito
+
+10000:	porta
+
+wait:	serviti in maniera sequenziale.
+
+una chiamata così scritta non prevede che sia presente un argomento nella
+applicazione.
+
+
+
+deve essere implementato in questo modo:
+1)	scrivere un file di configurazione fatto come scritto sopra
+2)	il server deve leggere all'avvio questo file e deve salvarseli 
+	all'interno di una struttura dati propriamente concepita
+3)	per ogni servizio fornito deve essere creata una socket, ma
+	questa socket deve avere i dettagli forniti nel file di config
+4)	riempire la select con i descrittori dei file delle socket create 
+	nella fase precedente
+5)	signal
+6)	il super server deve entrare nel suo loop infinito con il 
+	comportamento definito nella select
+7)	operazione di accept
+8)	fare la fork(): il processo padre (super-server) e il servizio 
+	è eseguito su tcp, bisogna ricordarsi di chiudere la socket di
+	connessione creata con l'operazione di accept. -> Se è udp non 
+	è da fare, anche perchè non esistono socket di connessione.
+	Se il servizio era di tipo "nowait" quindi concorrente, il padre
+	torna in ascolto sulla select, se invece il servizio è di
+	tipo "wait" il superserver deve registrare il pid del servizio e 
+	rimuovere il proprio socket descriptor dalla select e tornare
+	nella select. il processo figlio: deve chiudere i descrittori
+	standard (stdin,stdout,stderr) e chiudere la welcome socket,
+	dopo deve chiamare 3 volte l'operazione di dup per 
+	ridirezionare stdin stdout e stderr e successivamente execle per
+	eseguire il servizio richiesto
+
+
+	dup: il parametro in ingresso è il paramerto che vuole essere 
+	utilizzato per creare una copia di quel file descriptor e 
+	associarla ai descrittori poco prima chiusi. le operazioni di dup
+	vengono eseguite al socket fd al valore più piccolo, quindi è
+	importante che vengano chiusi in fila stdin, stdout e stderr.
+
+	execle: mette in esecuzione il servizio richiesto. se ritorna 
+	un valore <0 ha generato errore, se non ritorna nulla vuol dire 
+	che è andata a buon fine. ha un numero di parametri in ingresso
+	variabile, che dipende dal tipo di configurazione che vogliamo 
+	dargli. il primo parametro è il percorso completo dell'applicativo
+	che vogliamo emtte in esecuzione (completo di nome dell'applicazione)
+	il secondo parametro è il semplice nome dell'applicazione, 
+	tutti gli altri parametri non sono obbligatori e rappresentano quali sono i parametri ch euvole in input la nostra applicazione
+	quella lista di parametri termina con NULL passato come argomento
+	l'ultimo parametro è env è un parametro del main
+
+signal() -> funzione di callback, cioè se si verifica un certo evento si
+	compie qualcosa. Il segnale che vuole essere intercettato è il 
+	SIGCLD per risalire alla conclusione del processo. Quando la select
+	scatta perchè può scattare per altri motivi o per la terminazione
+	del processo figlio, quindi questo comado ci permette di capire
+	se è scattata nel momento giusto.
+wait() -> Funzione bloccante che permette di recuperare ilpid del processo terminato
+	è importante che questa funzione venga chiamata quando un processo
+	è veramente terminato, perchè se no il processo va in deadlock
+	
+
+dato un pid dobbiamo intercettare la struttura del processo terminato per
+per permettere di mettere nuovamente a diposizione il servizio terminato
+per essere utilizzato da un altro client che ne ha richiesto l'uso.
+
+STRUTTURA DATI:
+typedef struct{}
+per la prova che dobbiamo fare noi non ci interessa che la struttura sia
+statica o dinamica, perchè tanto abbiamo un numero limitato di servizi,
+quindi è comsigliato utilizzare un vettore anche se obbliga un numero
+limitato di componenti. 
+
+deve salvare:
+il protocollo di trasporto, la modalità di servizio (wait/nowait), la
+porta dove il servizio sarà reso disponibile, il path completo del nome
+del servizio, il nome esplicito del servizio, socket file descriptor e nel
+caso di sequenziali anche il processid.
+
+se c'è la necessità di salvare variabili globali, possono essere utilizzate
+
+quando facciamo i test li facciamo a blocchi per ogni caso descritto nelle
+tabello 15-16, per ognuno dei test che vengono fatti bisogna rispondere 
+alle domande a pagina 16.
+
+COSA INVIARE
