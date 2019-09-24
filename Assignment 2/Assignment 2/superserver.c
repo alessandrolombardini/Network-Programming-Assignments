@@ -7,6 +7,7 @@
 #include<netinet/in.h>
 #include<signal.h>
 #include<errno.h>
+#include<unistd.h>
 
 //Constants and global variable declaration goes here
 #define TRUE 1
@@ -29,6 +30,7 @@ typedef struct node {
 } serviceNode;
 
 serviceNode services[maxNumberOfService];
+fd_set readSet;
 
 
 //Function prototype devoted to handle the death of the son process
@@ -136,51 +138,92 @@ void startServices() {
 			fd = openTCPSocket(atoi(services[i].servicePort));
 		}
 		services[i].socketFileDescriptor = fd;
+		printf("%i", services[i].socketFileDescriptor);
+		fflush(stdout);
+	}
+}
+
+void manageMessage() {
+	struct sockaddr_in client_address;
+	socklen_t client_size = sizeof(client_address);
+
+	// Scan file descriptors of services to know which one has been activated 
+	// printf("Porta contattata: ");
+	for(int i = 0; i < numberOfServicesLoaded; i++){
+		if(FD_ISSET(services[i].socketFileDescriptor, &readSet)){
+			// printf("%s\n", services[i].servicePort);
+			// Manage reading of socket
+			int newSocket;
+			if(strcmp(services[i].transportProtocol, "tcp") == 0) {
+				newSocket = accept(services[i].socketFileDescriptor, (struct sockaddr *)&client_address, &client_size);
+				if(newSocket < 0){
+					perror("Accept error");
+					exit(EXIT_FAILURE);
+				}
+			}
+			int forkPid = fork();
+			if(strcmp(services[i].transportProtocol, "tcp") == 0) {
+				if(forkPid == 0) {
+					close(services[i].socketFileDescriptor);
+				} else {
+					close(newSocket);
+				}
+			} 
+			// If the service is in wait mode the father has to save the pid 
+			if(forkPid != 0 && strcmp(services[i].transportProtocol, "wait") == 0) {
+				services[i].pid = forkPid;
+				FD_CLR(services[i].socketFileDescriptor, &readSet);
+			}
+
+			if(execl("./udpServer", "udpServer", services[i].servicePort, NULL) != -1){
+				printf("Server aperto");
+			} else {
+				printf("Server non aperto");
+			}
+		}
+		printf("Socket non trovata");
 	}
 }
 
 void manageServices() {
-	fd_set readSet;
 	struct timeval timeToWait;
 	int maxFD = 0;
 
-	// Load file descriptors of services on a set 
-	FD_ZERO(&readSet);
-	for(int i = 0; i < numberOfServicesLoaded; i++){
-		FD_SET(services[i].socketFileDescriptor, &readSet);
-		if(services[i].socketFileDescriptor > maxFD){
-			maxFD = services[i].socketFileDescriptor;
-		}
-	}
-
 	while(TRUE) {
+		// Load file descriptors of services on a set 
+		FD_ZERO(&readSet);
+		for(int i = 0; i < numberOfServicesLoaded; i++){
+			FD_SET(services[i].socketFileDescriptor, &readSet);
+			if(services[i].socketFileDescriptor > maxFD){
+				maxFD = services[i].socketFileDescriptor;
+			}
+		}
+
 		timeToWait.tv_sec = 15;
 		timeToWait.tv_usec = 0;
 		int temp = select(maxFD + 1, &readSet, NULL, NULL, &timeToWait);
-		// printf("Select activated");
 		if(temp < 0){
-			// printf("Select error\n");
+			printf("Select error\n");
 		} else if(temp == 0){
-			// printf("Timeout expired\n");
+			printf("Timeout expired\n");
 		} else {
-			// Find FD of activated socket
-			// ? se ne trovo una e la gestisco, come trovo le altre eventualmente attive
-			printf("Socket attivata\n");
+			printf("gestione dei messaggi attivata");
+			manageMessage();
 		}
+
 	}
 }
 
 int  main(int argc,char **argv,char **env){ // NOTE: env is the variable to be passed, as last argument, to execle system-call
 	// Other variables declaration goes here
 
-
 	// Server behavior implementation goes here
+	signal (SIGCHLD,handle_signal); /* Handle signals sent by son processes - call this function when it's ought to be */
+
 	readConfiguration();
 	printConfiguration();
 	startServices();
 	manageServices();
-
-	signal (SIGCHLD,handle_signal); /* Handle signals sent by son processes - call this function when it's ought to be */
 
 	return 0;
 }
