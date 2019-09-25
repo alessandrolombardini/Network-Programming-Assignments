@@ -46,9 +46,9 @@ void handle_signal (int sig){
 	switch (sig) {
 		case SIGCHLD : 
 			// Implementation of SIGCHLD handling goes here	
-
-
+			printf("Il superserver riceve il SIGCHLD");
 			break;
+
 		default : printf ("Signal not known!\n");
 			break;
 	}
@@ -60,9 +60,9 @@ void readConfiguration() {
 	fd = fopen("inetd.conf","r");
 	if(fd==NULL){
 		printf("Si è verificato un errore in apertura del file");
+		fflush(stdout);
 		exit(1);
 	}
-
 	int i = 0;
 	while(fscanf(fd, "%s %s %s %s\n", services[i].serviceName, services[i].transportProtocol, services[i].servicePort, services[i].serviceMode) != EOF) {
 		i++;
@@ -74,6 +74,7 @@ void readConfiguration() {
 void printConfiguration() {
 	for(int i = 0; i < numberOfServicesLoaded; i++){
 		printf("%s %s %s %s\n", services[i].serviceName, services[i].transportProtocol, services[i].servicePort, services[i].serviceMode);
+		fflush(stdout);
 	}
 }
 
@@ -138,7 +139,7 @@ void startServices() {
 			fd = openTCPSocket(atoi(services[i].servicePort));
 		}
 		services[i].socketFileDescriptor = fd;
-		printf("%i", services[i].socketFileDescriptor);
+		printf("%i\n", services[i].socketFileDescriptor);
 		fflush(stdout);
 	}
 }
@@ -148,16 +149,15 @@ void manageMessage() {
 	socklen_t client_size = sizeof(client_address);
 
 	// Scan file descriptors of services to know which one has been activated 
-	printf("Porta contattata: ");
 	for(int i = 0; i < numberOfServicesLoaded; i++){
 		if(FD_ISSET(services[i].socketFileDescriptor, &readSet)){
-			printf("%s\n", services[i].servicePort);
 			// Manage reading of socket
 			int newSocket;
 			if(strcmp(services[i].transportProtocol, "tcp") == 0) {
 				newSocket = accept(services[i].socketFileDescriptor, (struct sockaddr *)&client_address, &client_size);
 				if(newSocket < 0){
 					perror("Accept error");
+					fflush(stdout);
 					exit(EXIT_FAILURE);
 				}
 			}
@@ -174,19 +174,15 @@ void manageMessage() {
 				services[i].pid = forkPid;
 				FD_CLR(services[i].socketFileDescriptor, &readSet);
 			}
+			if(forkPid == 0){			
 				close(0);
 				close(1);
 				close(2);
 				dup(services[i].socketFileDescriptor);
 				dup(services[i].socketFileDescriptor);
 				dup(services[i].socketFileDescriptor);
-			if(execl("/home/studente/Desktop/assignment-di-reti/Assignment 2/Assignment 2/udpServer.exe", "udpServer.exe", NULL) != -1){
-				printf("Server aperto\n");
-			} else {
-				printf("Server non aperto\n");
+				execl("./udpServer.exe", "udpServer.exe", NULL);
 			}
-			fflush(stdout);
-			sleep(3);
 		}
 	}
 }
@@ -204,7 +200,6 @@ void manageServices() {
 				maxFD = services[i].socketFileDescriptor;
 			}
 		}
-
 		timeToWait.tv_sec = 15;
 		timeToWait.tv_usec = 0;
 		int temp = select(maxFD + 1, &readSet, NULL, NULL, &timeToWait);
@@ -213,10 +208,8 @@ void manageServices() {
 		} else if(temp == 0){
 			printf("Timeout expired\n");
 		} else {
-			//printf("gestione dei messaggi attivata");
 			manageMessage();
 		}
-
 	}
 }
 
