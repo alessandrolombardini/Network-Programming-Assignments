@@ -174,7 +174,9 @@ void manageMessage() {
 				services[i].pid = forkPid;
 				FD_CLR(services[i].socketFileDescriptor, &readSet);
 			}
-
+				close(0);
+				close(1);
+				close(2);
 				dup(services[i].socketFileDescriptor);
 				dup(services[i].socketFileDescriptor);
 				dup(services[i].socketFileDescriptor);
