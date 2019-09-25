@@ -148,10 +148,10 @@ void manageMessage() {
 	socklen_t client_size = sizeof(client_address);
 
 	// Scan file descriptors of services to know which one has been activated 
-	// printf("Porta contattata: ");
+	printf("Porta contattata: ");
 	for(int i = 0; i < numberOfServicesLoaded; i++){
 		if(FD_ISSET(services[i].socketFileDescriptor, &readSet)){
-			// printf("%s\n", services[i].servicePort);
+			printf("%s\n", services[i].servicePort);
 			// Manage reading of socket
 			int newSocket;
 			if(strcmp(services[i].transportProtocol, "tcp") == 0) {
@@ -175,13 +175,17 @@ void manageMessage() {
 				FD_CLR(services[i].socketFileDescriptor, &readSet);
 			}
 
-			if(execl("./udpServer", "udpServer", services[i].servicePort, NULL) != -1){
-				printf("Server aperto");
+				dup(services[i].socketFileDescriptor);
+				dup(services[i].socketFileDescriptor);
+				dup(services[i].socketFileDescriptor);
+			if(execl("/home/studente/Desktop/assignment-di-reti/Assignment 2/Assignment 2/udpServer.exe", "udpServer.exe", NULL) != -1){
+				printf("Server aperto\n");
 			} else {
-				printf("Server non aperto");
+				printf("Server non aperto\n");
 			}
+			fflush(stdout);
+			sleep(3);
 		}
-		printf("Socket non trovata");
 	}
 }
 
@@ -207,7 +211,7 @@ void manageServices() {
 		} else if(temp == 0){
 			printf("Timeout expired\n");
 		} else {
-			printf("gestione dei messaggi attivata");
+			//printf("gestione dei messaggi attivata");
 			manageMessage();
 		}
 
