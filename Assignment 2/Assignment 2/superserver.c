@@ -4,6 +4,7 @@
 #include<sys/types.h>
 #include<sys/socket.h>
 #include<sys/time.h>
+#include<sys/wait.h>
 #include<netinet/in.h>
 #include<signal.h>
 #include<errno.h>
@@ -12,6 +13,7 @@
 //Constants and global variable declaration goes here
 #define TRUE 1
 #define FALSE 0
+#define PID_NULL -1
 #define maxNumberOfService 10
 
 #define BACK_LOG 2 // Maximum queued requests
@@ -39,15 +41,22 @@ void handle_signal (int sig);
 // handle_signal implementation
 void handle_signal (int sig){
 	// Call to wait system-call goes here
+	pid_t p;
 
 	switch (sig) {
 		case SIGCHLD : 
 			// Implementation of SIGCHLD handling goes here	
-			printf("Il superserver riceve il SIGCHLD");
-			break;
+			p = wait(NULL);
+			for(int i = 0; i < numberOfServicesLoaded; i++){
+				if(services[i].pid == p){
+					FD_SET(services[i].socketFileDescriptor, &readSet);
+					services[i].pid = PID_NULL;
+				}
+			}
+		break;
 
-		default : printf ("Signal not known!\n");
-			break;
+		default : printf ("Signal not known!\n"); 
+		break;
 	}
 }
 
@@ -159,25 +168,13 @@ void manageMessage(char **env) {
 			}	
 			// Create a new child to manage new connection
 			int forkPid = fork();
-			int socketToManage;
-			if(strcmp(services[i].transportProtocol, "tcp") == 0) {
-				if(forkPid == 0) {
-					close(services[i].socketFileDescriptor);
-				} else {
-					close(newSocket);
-				}
-				socketToManage = newSocket;
-			} else {
-				socketToManage = services[i].socketFileDescriptor;
-			}
-	
-			// If the service is in wait mode the father has to save the pid 
-			// if(forkPid != 0 && strcmp(services[i].transportProtocol, "wait") == 0) {
-			// 	services[i].pid = forkPid;
-			// 	FD_CLR(services[i].socketFileDescriptor, &readSet);
-			// }	
-		
 			if(forkPid == 0){
+				int socketToManage;		
+				if (strcmp(services[i].transportProtocol, "tcp") == 0) {
+					socketToManage = newSocket;
+				} else {
+					socketToManage = services[i].socketFileDescriptor;
+				}
 				close(0);
 				close(1);
 				close(2);
@@ -189,7 +186,15 @@ void manageMessage(char **env) {
 				} else {
 					execle("./udpServer.exe", "udpServer.exe", NULL, env);
 				}
-			} 
+			} else {
+				if(strcmp(services[i].transportProtocol, "tcp") == 0){
+					close(newSocket);
+				}
+				if(strcmp(services[i].transportProtocol, "wait") == 0) {
+					services[i].pid = forkPid;
+					FD_CLR(services[i].socketFileDescriptor, &readSet);
+				}	
+			}
 		}
 	}
 }
@@ -202,9 +207,11 @@ void manageServices(char **env) {
 		FD_ZERO(&readSet);
 		int maxFD = 0;
 		for(int i = 0; i < numberOfServicesLoaded; i++){
-			FD_SET(services[i].socketFileDescriptor, &readSet);
-			if(services[i].socketFileDescriptor > maxFD){
-				maxFD = services[i].socketFileDescriptor;
+			if(services[i].pid == PID_NULL || strcmp(services[i].transportProtocol, "nowait") == 0){
+				FD_SET(services[i].socketFileDescriptor, &readSet);
+				if(services[i].socketFileDescriptor > maxFD){
+					maxFD = services[i].socketFileDescriptor;
+				}
 			}
 		}
 		timeToWait.tv_sec = 15;
