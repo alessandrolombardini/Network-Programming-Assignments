@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <unistd.h>
+#include <sys/wait.h> 
 #include <string.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -8,9 +10,15 @@
 #include <signal.h>
 #include <errno.h>
 
+
+
+
+
 //Constants and global variable declaration goes here
 #define MAX_SERVICES 10
 #define MAX_CHAR 255
+#define BACK_LOG 2 // Maximum queued requests
+int services_cntr = 0;
 
 //Service structure definition goes here
 typedef struct{
@@ -19,75 +27,224 @@ typedef struct{
 	char service_port[MAX_CHAR];
 	char service_path[MAX_CHAR];
 	char service_name[MAX_CHAR];
-	char sfd[MAX_CHAR];
+	int sfd;
 	int pid;
-}structure;
+} structure;
 
 structure service_info[MAX_SERVICES];
 
 //Function devoted to handle the death of the son process
-void handle_signal (int sig){
-        // Call to wait system-call goes here
-
-        switch (sig) {
-                case SIGCHLD :
-                        // Implementation of SIGCHLD handling goes here
-
-
-                        break;
-                default : printf ("Signal not known!\n");
-                        break;
-        }
+void handle_signal(int sig){
+	int pid;
+	switch (sig)	{
+		case SIGCHLD:
+			// Implementation of SIGCHLD handling goes here
+			pid = wait(NULL);
+			printf("Superserver: il processo %d e' morto.\n\n", pid);
+			for (int i = 0; i < services_cntr; i++){
+				if (service_info[i].pid == pid){
+					if (strcmp(service_info[i].service_mode, "wait") == 0){
+						service_info[i].pid = 0;
+					}
+				}
+			}
+			break;
+		default:
+			printf("Signal not known!\n");
+			break;
+	}
 }
 
 void read_configuration_file(){
-	static char* conf_name = "inetd.conf";
-        FILE* fp;
-        int services_cntr = 0;
-
+	static char *conf_name = "inetd.conf";
+	FILE *fp;
+	services_cntr = 0;
 	fp = fopen(conf_name, "r");
-        if (fp == NULL){
-                perror("Error while opening configuration file.\n");
-                exit(1);
-        }
+	if (fp == NULL)	{
+		perror("Error while opening configuration file.\n");
+		exit(EXIT_FAILURE);
+	}
 
-        while(fscanf(fd, "%s %s %s %s\n", services_info[i].service_name, services_info[i].transport_protocol, services_info[i].service_port, services_info[i].service_mode) != EOF) {
-                services_cntr++;
-        }
-
-        fclose(fp);
+	while (fscanf(fp, "%s %s %s %s\n", service_info[services_cntr].service_path, service_info[services_cntr].transport_protocol, service_info[services_cntr].service_port, service_info[services_cntr].service_mode) != EOF){
+		char * service_name = strrchr(service_info[services_cntr].service_path, '/');
+		service_name++;
+		strcpy(service_info[services_cntr].service_name,service_name);
+		services_cntr++;
+	}
+	printf("Services counter: %d.\n", services_cntr);
+	fclose(fp);
 }
 
-int  main(int argc,char **argv,char **env){ // NOTE: env is the variable to be passed, as last argument, to execle system-call
+int create_tcp_socket(structure service){
+	int sfd, br, lr;
+	struct sockaddr_in server_addr;
 
-// Other variables declaration goes here
+	sfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sfd < 0){
+		perror("Error while creating UDP socket.\n");
+		exit(EXIT_FAILURE);
+	}
 
+	printf("Porta socket TCP creata con successo, sfd: %d.\n", sfd);
 
-// Server behavior implementation goes here
+	// Initialize server address information
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(atoi(service.service_port)); // Convert to network byte order
+	server_addr.sin_addr.s_addr = INADDR_ANY;				  // Bind to any address
+	br = bind(sfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
+	if (br < 0){
+		perror("Error while executing bind on TCP socket.\n"); // Print error message
+		exit(EXIT_FAILURE);
+	}
 
-	// --- open configuration file in reading mode. for each line extract params and save info into data structure
-        read_configuration_file();
-	// --- create required socket for the service (if the TCP service then invoke listen() + save sfd into data structure
+	// Listen for incoming requests
+	lr = listen(sfd, BACK_LOG);
+	if (lr < 0){
+		perror("Error while calling listen on TCP socket.\n");
+		exit(EXIT_FAILURE);
+	}
 
-	// --- fill select()
+	return sfd;
+}
 
-	// --- invoke signal
-	signal (SIGCHLD,handle_signal); /* Handle signals sent by son processes - call this function when it's ought to be */
+int create_udp_socket(structure service){
+	int sfd, br;
+	struct sockaddr_in server_addr;
 
-	// --- run infinite loop based on select operation
+	sfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (sfd < 0){
+		perror("Error while creating UDP socket.\n");
+		exit(EXIT_FAILURE);
+	}
 
-	// --- if select is fired, if service belongs to TCP then invoce accept operation in order to retrieve the connected sfd
+	printf("Porta socket UDP creata con successo, sfd: %d.\n", sfd);
 
-	// --- invokes fork() and process it as follow
-	//	- Father:
-	//		if service is tcp then close the connected socket
-	//		if service is no-wait, go back to select
-	//		if service is wait, he register PID inside data structure, removes its sfd from select and go back to select
-	//	- Son:
-	//		closes all std I/O fd (0,1,2)
-	//		if service is tcp then closes welcome socket
-	//		it calls 3 times dup operation in order to associate sfd to stdin, stdout and stderr
-	//		it invokes execle in order to execute requested service.
+	// Initialize server address information
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(atoi(service.service_port)); // Convert to network byte order
+	server_addr.sin_addr.s_addr = INADDR_ANY;				  // Bind to any address
+	br = bind(sfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
+	if (br < 0){
+		perror("Error while executing bind on TCP socket.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	return sfd;
+}
+
+void create_sockets(){
+	int i, sfd;
+
+	for (i = 0; i < services_cntr; i++)	{
+		if (strcmp(service_info[i].transport_protocol, "tcp") == 0)		{
+			sfd = create_tcp_socket(service_info[i]);
+		}else{
+			sfd = create_udp_socket(service_info[i]);
+		}
+		service_info[i].sfd = sfd;
+	}
+}
+
+void print_structure(){
+	for (int i = 0; i < services_cntr; i++)	{
+		printf("\n\n\tElemento %d della struttura.\n", i);
+		printf("\tService mode: %s.\n", service_info[i].service_mode);
+		printf("\tService name: %s.\n", service_info[i].service_name);
+		printf("\tService sfd: %d.\n", service_info[i].sfd);
+		printf("\tService port: %s.\n\n", service_info[i].service_port);
+	}
+}
+
+void manage_select(char **env){
+	fd_set read_set;
+	struct timeval time_wait;
+	int temp, i, max_sfd, new_sfd, pid;
+	struct sockaddr_in client_addr; // struct containing client address information
+	socklen_t cli_size;
+
+	while(1){
+		max_sfd = 0;
+		temp = 0;
+
+		FD_ZERO(&read_set);
+		for (i = 0; i < services_cntr; i ++){
+			if(!(strcmp(service_info[i].service_mode, "wait") == 0 && service_info[i].pid != 0)){ //Remove from FD_SET active services
+				FD_SET(service_info[i].sfd, &read_set);
+				if (service_info[i].sfd > max_sfd){ //Check for max sfd
+					max_sfd = service_info[i].sfd; 
+				}
+			} 
+		}
+
+		time_wait.tv_sec = 15;
+		time_wait.tv_usec = 0;
+
+		if ((temp = select(max_sfd+1, &read_set, NULL, NULL, &time_wait)) < 0){
+			printf("Error while executing bind on TCP socket.\n");
+		} 
+		if (temp == 0){
+			printf("Timeout expired.\n");
+		} else { 
+			for (int i = 0; i < services_cntr; i++){ 
+				if (FD_ISSET(service_info[i].sfd, &read_set)){ //There is a connection pending
+						printf("Selected %s service port.\n\n", service_info[i].service_port);
+
+						if (strcmp(service_info[i].transport_protocol, "tcp") == 0){
+							new_sfd = accept(service_info[i].sfd, (struct sockaddr *) &client_addr, &cli_size);
+							if (new_sfd < 0){
+								perror("Error while executing accept.\n");
+								exit(EXIT_FAILURE);
+							}
+							printf("New sfd (%d) assigned to a client.\n\n", new_sfd);
+						}
+
+						pid = fork();
+						printf("Service %s at process %d.\n\n", service_info[i].service_port, pid);
+						if (pid == 0){
+							//Son Process
+							close(0);
+							close(1);
+							close(2);
+							if (strcmp(service_info[i].transport_protocol, "tcp") == 0){
+								close(service_info[i].sfd);
+								dup(new_sfd);
+								dup(new_sfd);
+								dup(new_sfd);
+							} else {
+								dup (service_info[i].sfd);
+								dup (service_info[i].sfd);
+								dup (service_info[i].sfd);							
+							}
+
+							if (execle(service_info[i].service_path, service_info[i].service_name, NULL, env) == -1) {
+								perror("Error while calling execle.\n");
+								exit(EXIT_FAILURE);
+							}							
+						} else {
+							//Father Process
+							if (strcmp(service_info[i].transport_protocol, "tcp") == 0){
+								close(new_sfd);
+							}
+							if (strcmp(service_info[i].service_mode, "nowait") == 0){
+								break;
+							} else {
+								service_info[i].pid = pid;
+								break;
+							}
+						}
+				}
+			}
+		}
+	}
+}
+
+int main(int argc, char **argv, char **env){
+
+	read_configuration_file();
+	create_sockets();
+	print_structure();
+	signal(SIGCHLD, handle_signal); 
+	manage_select(env);
 
 	return 0;
 }

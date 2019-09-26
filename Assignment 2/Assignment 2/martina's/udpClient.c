@@ -7,7 +7,6 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include "myfunction.h"
-
 #define MAX_BUF_SIZE 1024 // Maximum size of UDP messages
 
 int main(int argc, char *argv[]){
