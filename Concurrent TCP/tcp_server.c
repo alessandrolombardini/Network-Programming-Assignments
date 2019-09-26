@@ -38,7 +38,7 @@ int main(int argc, char *argv[]){
 	server_addr.sin_addr.s_addr = INADDR_ANY; // Bind to any address
 	br = bind(sfd, (struct sockaddr *) &server_addr, sizeof(server_addr));
 	if (br < 0){
-		perror(”bind"); // Print error message
+		perror("bind"); // Print error message
 		exit(EXIT_FAILURE);
 	}
 	cli_size = sizeof(client_addr);
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]){
 	// Listen for incoming requests
 	lr = listen(sfd, BACK_LOG);
 	if (lr < 0){
-		perror(”listen"); // Print error message
+		perror("listen"); // Print error message
 		exit(EXIT_FAILURE);
 	}
 
@@ -54,7 +54,7 @@ int main(int argc, char *argv[]){
 		// Wait for incoming requests
 		newsfd = accept(sfd, (struct sockaddr *) &client_addr, &cli_size);
 		if (newsfd < 0){
-			perror(”accept"); // Print error message
+			perror("accept"); // Print error message
 			exit(EXIT_FAILURE);
 		}
 
