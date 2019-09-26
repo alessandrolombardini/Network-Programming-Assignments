@@ -161,14 +161,21 @@ void manageMessage() {
 					exit(EXIT_FAILURE);
 				}
 			}
+			printf("Socket di accettazione: %i\n", newSocket);
 			int forkPid = fork();
+			int socketToManage;
 			if(strcmp(services[i].transportProtocol, "tcp") == 0) {
 				if(forkPid == 0) {
 					close(services[i].socketFileDescriptor);
+					socketToManage = newSocket;
 				} else {
 					close(newSocket);
+					socketToManage = services[i].socketFileDescriptor;
 				}
-			} 
+			} else {
+				socketToManage = services[i].socketFileDescriptor;
+			}
+
 			// If the service is in wait mode the father has to save the pid 
 			if(forkPid != 0 && strcmp(services[i].transportProtocol, "wait") == 0) {
 				services[i].pid = forkPid;
@@ -178,10 +185,14 @@ void manageMessage() {
 				close(0);
 				close(1);
 				close(2);
-				dup(services[i].socketFileDescriptor);
-				dup(services[i].socketFileDescriptor);
-				dup(services[i].socketFileDescriptor);
-				execl("./udpServer.exe", "udpServer.exe", NULL);
+				dup(socketToManage);
+				dup(socketToManage);
+				dup(socketToManage);
+				if(strcmp(services[i].transportProtocol, "tcp") == 0){
+					execl("./tcpServer.exe", "tcpServer.exe", NULL);
+				} else {
+					execl("./udpServer.exe", "udpServer.exe", NULL);
+				}
 			}
 		}
 	}
