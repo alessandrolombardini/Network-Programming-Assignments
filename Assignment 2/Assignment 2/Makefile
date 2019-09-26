@@ -25,7 +25,7 @@ tcpClient.o:   tcpClient.c
 		gcc -c ${CFLAGS} tcpClient.c
 
 tcpServer.exe:     tcpServer.o 
-		gcc ${CFLAGS} -o tctServer.exe tcpServer.o 
+		gcc ${CFLAGS} -o tcpServer.exe tcpServer.o 
 
 tcpServer.o:   tcpServer.c
 		gcc -c ${CFLAGS} tcpServer.c

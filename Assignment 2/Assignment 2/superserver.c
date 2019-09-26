@@ -35,9 +35,6 @@ fd_set readSet;
 
 //Function prototype devoted to handle the death of the son process
 void handle_signal (int sig);
-//Other prototype 
-void readConfiguration();
-void printConfiguration();
 
 // handle_signal implementation
 void handle_signal (int sig){
@@ -139,49 +136,48 @@ void startServices() {
 			fd = openTCPSocket(atoi(services[i].servicePort));
 		}
 		services[i].socketFileDescriptor = fd;
-		printf("%i\n", services[i].socketFileDescriptor);
-		fflush(stdout);
 	}
 }
 
-void manageMessage() {
+void manageMessage(char **env) {
 	struct sockaddr_in client_address;
 	socklen_t client_size = sizeof(client_address);
 
 	// Scan file descriptors of services to know which one has been activated 
 	for(int i = 0; i < numberOfServicesLoaded; i++){
 		if(FD_ISSET(services[i].socketFileDescriptor, &readSet)){
-			// Manage reading of socket
+			// Accept connection
 			int newSocket;
 			if(strcmp(services[i].transportProtocol, "tcp") == 0) {
 				newSocket = accept(services[i].socketFileDescriptor, (struct sockaddr *)&client_address, &client_size);
+					FD_ZERO(&readSet);
 				if(newSocket < 0){
 					perror("Accept error");
 					fflush(stdout);
 					exit(EXIT_FAILURE);
 				}
-			}
-			printf("Socket di accettazione: %i\n", newSocket);
+			}	
+			// Create a new child to manage new connection
 			int forkPid = fork();
 			int socketToManage;
 			if(strcmp(services[i].transportProtocol, "tcp") == 0) {
 				if(forkPid == 0) {
 					close(services[i].socketFileDescriptor);
-					socketToManage = newSocket;
 				} else {
 					close(newSocket);
-					socketToManage = services[i].socketFileDescriptor;
 				}
+				socketToManage = newSocket;
 			} else {
 				socketToManage = services[i].socketFileDescriptor;
 			}
-
+	
 			// If the service is in wait mode the father has to save the pid 
-			if(forkPid != 0 && strcmp(services[i].transportProtocol, "wait") == 0) {
-				services[i].pid = forkPid;
-				FD_CLR(services[i].socketFileDescriptor, &readSet);
-			}
-			if(forkPid == 0){			
+			// if(forkPid != 0 && strcmp(services[i].transportProtocol, "wait") == 0) {
+			// 	services[i].pid = forkPid;
+			// 	FD_CLR(services[i].socketFileDescriptor, &readSet);
+			// }	
+		
+			if(forkPid == 0){
 				close(0);
 				close(1);
 				close(2);
@@ -189,22 +185,22 @@ void manageMessage() {
 				dup(socketToManage);
 				dup(socketToManage);
 				if(strcmp(services[i].transportProtocol, "tcp") == 0){
-					execl("./tcpServer.exe", "tcpServer.exe", NULL);
+					int c = execle("./tcpServer.exe", "tcpServer.exe", NULL, env);
 				} else {
-					execl("./udpServer.exe", "udpServer.exe", NULL);
+					execle("./udpServer.exe", "udpServer.exe", NULL, env);
 				}
-			}
+			} 
 		}
 	}
 }
 
-void manageServices() {
+void manageServices(char **env) {
 	struct timeval timeToWait;
-	int maxFD = 0;
-
+	
 	while(TRUE) {
 		// Load file descriptors of services on a set 
 		FD_ZERO(&readSet);
+		int maxFD = 0;
 		for(int i = 0; i < numberOfServicesLoaded; i++){
 			FD_SET(services[i].socketFileDescriptor, &readSet);
 			if(services[i].socketFileDescriptor > maxFD){
@@ -219,7 +215,7 @@ void manageServices() {
 		} else if(temp == 0){
 			printf("Timeout expired\n");
 		} else {
-			manageMessage();
+			manageMessage(env);
 		}
 	}
 }
@@ -233,7 +229,7 @@ int  main(int argc,char **argv,char **env){ // NOTE: env is the variable to be p
 	readConfiguration();
 	printConfiguration();
 	startServices();
-	manageServices();
+	manageServices(env);
 
 	return 0;
 }
