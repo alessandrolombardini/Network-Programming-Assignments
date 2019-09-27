@@ -10,14 +10,13 @@
 #include <signal.h>
 #include <errno.h>
 
-
-
-
-
 //Constants and global variable declaration goes here
 #define MAX_SERVICES 10
 #define MAX_CHAR 255
 #define BACK_LOG 2 // Maximum queued requests
+#define NULL_PID -1
+
+fd_set read_set;
 int services_cntr = 0;
 
 //Service structure definition goes here
@@ -30,7 +29,6 @@ typedef struct{
 	int sfd;
 	int pid;
 } structure;
-
 structure service_info[MAX_SERVICES];
 
 //Function devoted to handle the death of the son process
@@ -40,18 +38,31 @@ void handle_signal(int sig){
 		case SIGCHLD:
 			// Implementation of SIGCHLD handling goes here
 			pid = wait(NULL);
-			printf("Superserver: il processo %d e' morto.\n\n", pid);
+			printf("\n -> Superserver: il processo e' stato chiuso.\n");
 			for (int i = 0; i < services_cntr; i++){
 				if (service_info[i].pid == pid){
+					service_info[i].pid = NULL_PID;
 					if (strcmp(service_info[i].service_mode, "wait") == 0){
-						service_info[i].pid = 0;
+						printf(" -> Superserver: Aggiungo nuovamente sfd %d in FD_SET.\n", service_info[i].sfd);
+						FD_SET(service_info[i].sfd, &read_set);
 					}
+					break;
 				}
 			}
 			break;
 		default:
 			printf("Signal not known!\n");
 			break;
+	}
+}
+
+void print_structure(){
+	for (int i = 0; i < services_cntr; i++)	{
+		printf("\n\n\tElemento %d della struttura.\n", i);
+		printf("\tService mode: %s.\n", service_info[i].service_mode);
+		printf("\tService name: %s.\n", service_info[i].service_name);
+		printf("\tService sfd: %d.\n", service_info[i].sfd);
+		printf("\tService port: %s.\n\n", service_info[i].service_port);
 	}
 }
 
@@ -69,6 +80,7 @@ void read_configuration_file(){
 		char * service_name = strrchr(service_info[services_cntr].service_path, '/');
 		service_name++;
 		strcpy(service_info[services_cntr].service_name,service_name);
+		service_info[services_cntr].pid = NULL_PID;
 		services_cntr++;
 	}
 	printf("Services counter: %d.\n", services_cntr);
@@ -145,49 +157,36 @@ void create_sockets(){
 	}
 }
 
-void print_structure(){
-	for (int i = 0; i < services_cntr; i++)	{
-		printf("\n\n\tElemento %d della struttura.\n", i);
-		printf("\tService mode: %s.\n", service_info[i].service_mode);
-		printf("\tService name: %s.\n", service_info[i].service_name);
-		printf("\tService sfd: %d.\n", service_info[i].sfd);
-		printf("\tService port: %s.\n\n", service_info[i].service_port);
-	}
-}
-
 void manage_select(char **env){
-	fd_set read_set;
 	struct timeval time_wait;
 	int temp, i, max_sfd, new_sfd, pid;
 	struct sockaddr_in client_addr; // struct containing client address information
-	socklen_t cli_size;
+	socklen_t cli_size = sizeof(client_addr);
 
 	while(1){
-		max_sfd = 0;
-		temp = 0;
-
-		FD_ZERO(&read_set);
-		for (i = 0; i < services_cntr; i ++){
-			if(!(strcmp(service_info[i].service_mode, "wait") == 0 && service_info[i].pid != 0)){ //Remove from FD_SET active services
-				FD_SET(service_info[i].sfd, &read_set);
-				if (service_info[i].sfd > max_sfd){ //Check for max sfd
-					max_sfd = service_info[i].sfd; 
-				}
-			} 
-		}
-
 		time_wait.tv_sec = 15;
 		time_wait.tv_usec = 0;
+		max_sfd = 0;
+		FD_ZERO(&read_set);
 
-		if ((temp = select(max_sfd+1, &read_set, NULL, NULL, &time_wait)) < 0){
-			printf("Error while executing bind on TCP socket.\n");
-		} 
-		if (temp == 0){
-			printf("Timeout expired.\n");
+		for (i = 0; i < services_cntr; i ++){
+			if(strcmp(service_info[i].service_mode, "wait") != 0  || service_info[i].pid == NULL_PID){ 
+					FD_SET(service_info[i].sfd, &read_set);
+					if (service_info[i].sfd > max_sfd){ //Check for max sfd
+						max_sfd = service_info[i].sfd; 
+					}
+			}
+		}
+		printf("\t---> CALLING SELECT.\n");
+		temp = select(max_sfd+1, &read_set, NULL, NULL, &time_wait);
+		if (temp < 0){
+			printf("Error while executing select on TCP socket: %s.\n\n",strerror(errno));// C'è qualcosa che non va qui
+		} else if (temp == 0){
+			printf("\t---> Timeout expired.\n");
 		} else { 
 			for (int i = 0; i < services_cntr; i++){ 
 				if (FD_ISSET(service_info[i].sfd, &read_set)){ //There is a connection pending
-						printf("Selected %s service port.\n\n", service_info[i].service_port);
+						printf("\n -> Superserver: Selected %s service port.\n", service_info[i].service_port);
 
 						if (strcmp(service_info[i].transport_protocol, "tcp") == 0){
 							new_sfd = accept(service_info[i].sfd, (struct sockaddr *) &client_addr, &cli_size);
@@ -195,11 +194,10 @@ void manage_select(char **env){
 								perror("Error while executing accept.\n");
 								exit(EXIT_FAILURE);
 							}
-							printf("New sfd (%d) assigned to a client.\n\n", new_sfd);
 						}
 
 						pid = fork();
-						printf("Service %s at process %d.\n\n", service_info[i].service_port, pid);
+						
 						if (pid == 0){
 							//Son Process
 							close(0);
@@ -213,11 +211,12 @@ void manage_select(char **env){
 							} else {
 								dup (service_info[i].sfd);
 								dup (service_info[i].sfd);
-								dup (service_info[i].sfd);							
+								dup (service_info[i].sfd);
 							}
 
 							if (execle(service_info[i].service_path, service_info[i].service_name, NULL, env) == -1) {
 								perror("Error while calling execle.\n");
+								fflush(stdout);
 								exit(EXIT_FAILURE);
 							}							
 						} else {
@@ -225,26 +224,32 @@ void manage_select(char **env){
 							if (strcmp(service_info[i].transport_protocol, "tcp") == 0){
 								close(new_sfd);
 							}
-							if (strcmp(service_info[i].service_mode, "nowait") == 0){
-								break;
-							} else {
+							if (strcmp(service_info[i].service_mode, "wait") == 0){
+								printf(" -> Superserver: mi è stato richiesto un servizio wait.\n");
+								fflush(stdout);
 								service_info[i].pid = pid;
-								break;
-							}
+								FD_CLR(service_info[i].sfd, &read_set);
+							} 
 						}
+						
+						printf(" -> Superserver: torno alla select.\n\n");
+						fflush(stdout);
 				}
 			}
 		}
 	}
+
 }
 
 int main(int argc, char **argv, char **env){
-
 	read_configuration_file();
+
+	fflush(stdout);
+
 	create_sockets();
+
 	print_structure();
 	signal(SIGCHLD, handle_signal); 
 	manage_select(env);
-
 	return 0;
 }
