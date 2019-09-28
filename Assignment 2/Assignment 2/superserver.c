@@ -14,11 +14,11 @@
 #define TRUE 1
 #define FALSE 0
 #define PID_NULL -1
-#define maxNumberOfService 10
-
+#define MAX_NUMBER_OF_SERVICES 10
 #define BACK_LOG 2 // Maximum queued requests
 
 int numberOfServicesLoaded;
+int signalEvent = FALSE;
 
 //Service structure definition goes here
 typedef struct node {
@@ -31,9 +31,8 @@ typedef struct node {
 	int pid;
 } serviceNode;
 
-serviceNode services[maxNumberOfService];
+serviceNode services[MAX_NUMBER_OF_SERVICES];
 fd_set readSet;
-
 
 //Function prototype devoted to handle the death of the son process
 void handle_signal (int sig);
@@ -47,6 +46,7 @@ void handle_signal (int sig){
 		case SIGCHLD : 
 			// Implementation of SIGCHLD handling goes here	
 			p = wait(NULL);
+			signalEvent = TRUE;
 			for(int i = 0; i < numberOfServicesLoaded; i++){
 				if(services[i].pid == p){
 					FD_SET(services[i].socketFileDescriptor, &readSet);
@@ -70,7 +70,9 @@ void readConfiguration() {
 		exit(1);
 	}
 	int i = 0;
-	while(fscanf(fd, "%s %s %s %s\n", services[i].serviceName, services[i].transportProtocol, services[i].servicePort, services[i].serviceMode) != EOF) {
+	while(fscanf(fd, "%s %s %s %s\n", services[i].serviceFullPathName, services[i].transportProtocol, services[i].servicePort, services[i].serviceMode) != EOF) {
+		strcpy(services[i].serviceName, strrchr(services[i].serviceFullPathName, '/') + 1);
+		services[i].pid = PID_NULL;
 		i++;
 	}
 	fclose(fd);
@@ -80,6 +82,13 @@ void readConfiguration() {
 void printConfiguration() {
 	for(int i = 0; i < numberOfServicesLoaded; i++){
 		printf("%s %s %s %s\n", services[i].serviceName, services[i].transportProtocol, services[i].servicePort, services[i].serviceMode);
+		fflush(stdout);
+	}
+}
+
+void printServicesNode() {
+	for(int i = 0; i < numberOfServicesLoaded; i++){
+		printf("%i° nodo --| Porta: %s | Pid: %i | Transport: %s | Mode: %s\n", i, services[i].servicePort, services[i].pid, services[i].transportProtocol, services[i].serviceMode);
 		fflush(stdout);
 	}
 }
@@ -137,7 +146,6 @@ int openUDPSocket(int port){
 
 void startServices() {
 	int fd;
-
 	for(int i = 0; i < numberOfServicesLoaded; i++){
 		if(strcmp(services[i].transportProtocol, "udp") == 0){
 			fd = openUDPSocket(atoi(services[i].servicePort));
@@ -151,7 +159,7 @@ void startServices() {
 void manageMessage(char **env) {
 	struct sockaddr_in client_address;
 	socklen_t client_size = sizeof(client_address);
-
+	
 	// Scan file descriptors of services to know which one has been activated 
 	for(int i = 0; i < numberOfServicesLoaded; i++){
 		if(FD_ISSET(services[i].socketFileDescriptor, &readSet)){
@@ -159,7 +167,6 @@ void manageMessage(char **env) {
 			int newSocket;
 			if(strcmp(services[i].transportProtocol, "tcp") == 0) {
 				newSocket = accept(services[i].socketFileDescriptor, (struct sockaddr *)&client_address, &client_size);
-					FD_ZERO(&readSet);
 				if(newSocket < 0){
 					perror("Accept error");
 					fflush(stdout);
@@ -168,8 +175,8 @@ void manageMessage(char **env) {
 			}	
 			// Create a new child to manage new connection
 			int forkPid = fork();
+			int socketToManage;
 			if(forkPid == 0){
-				int socketToManage;		
 				if (strcmp(services[i].transportProtocol, "tcp") == 0) {
 					socketToManage = newSocket;
 				} else {
@@ -181,16 +188,12 @@ void manageMessage(char **env) {
 				dup(socketToManage);
 				dup(socketToManage);
 				dup(socketToManage);
-				if(strcmp(services[i].transportProtocol, "tcp") == 0){
-					int c = execle("./tcpServer.exe", "tcpServer.exe", NULL, env);
-				} else {
-					execle("./udpServer.exe", "udpServer.exe", NULL, env);
-				}
+				execle(services[i].serviceFullPathName, services[i].serviceName, NULL, env);
 			} else {
 				if(strcmp(services[i].transportProtocol, "tcp") == 0){
 					close(newSocket);
 				}
-				if(strcmp(services[i].transportProtocol, "wait") == 0) {
+				if(strcmp(services[i].serviceMode, "wait") == 0) {
 					services[i].pid = forkPid;
 					FD_CLR(services[i].socketFileDescriptor, &readSet);
 				}	
@@ -207,22 +210,26 @@ void manageServices(char **env) {
 		FD_ZERO(&readSet);
 		int maxFD = 0;
 		for(int i = 0; i < numberOfServicesLoaded; i++){
-			if(services[i].pid == PID_NULL || strcmp(services[i].transportProtocol, "nowait") == 0){
+			if(services[i].pid == PID_NULL || strcmp(services[i].serviceMode, "nowait") == 0) {
 				FD_SET(services[i].socketFileDescriptor, &readSet);
 				if(services[i].socketFileDescriptor > maxFD){
 					maxFD = services[i].socketFileDescriptor;
 				}
 			}
 		}
-		timeToWait.tv_sec = 15;
+		timeToWait.tv_sec = 5;
 		timeToWait.tv_usec = 0;
 		int temp = select(maxFD + 1, &readSet, NULL, NULL, &timeToWait);
-		if(temp < 0){
-			printf("Select error\n");
-		} else if(temp == 0){
-			printf("Timeout expired\n");
+		if(signalEvent == FALSE) {
+			if(temp < 0){
+				printf("Select error\n");
+			} else if(temp == 0){
+				printf("Timeout expired\n");
+			} else {
+				manageMessage(env);
+			}
 		} else {
-			manageMessage(env);
+			signalEvent = FALSE;
 		}
 	}
 }
@@ -240,4 +247,3 @@ int  main(int argc,char **argv,char **env){ // NOTE: env is the variable to be p
 
 	return 0;
 }
-
