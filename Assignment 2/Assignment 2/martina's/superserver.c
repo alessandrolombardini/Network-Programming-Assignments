@@ -15,9 +15,12 @@
 #define MAX_CHAR 255
 #define BACK_LOG 2 // Maximum queued requests
 #define NULL_PID -1
+#define TRUE 1
+#define FALSE 0
 
 fd_set read_set;
 int services_cntr = 0;
+int is_sigchld = 0;
 
 //Service structure definition goes here
 typedef struct{
@@ -38,12 +41,15 @@ void handle_signal(int sig){
 		case SIGCHLD:
 			// Implementation of SIGCHLD handling goes here
 			pid = wait(NULL);
-			printf("\n -> Superserver: il processo e' stato chiuso.\n");
+			is_sigchld = TRUE;
 			for (int i = 0; i < services_cntr; i++){
 				if (service_info[i].pid == pid){
+					printf("\n -> Superserver: La connessione per il servizio %s e' stata chiusa.\n", service_info[i].service_port);
+					fflush(stdout);
 					service_info[i].pid = NULL_PID;
 					if (strcmp(service_info[i].service_mode, "wait") == 0){
-						printf(" -> Superserver: Aggiungo nuovamente sfd %d in FD_SET.\n", service_info[i].sfd);
+						printf(" -> Superserver: Aggiungo la service port %s in ascolto.\n\n", service_info[i].service_port);
+						fflush(stdout);
 						FD_SET(service_info[i].sfd, &read_set);
 					}
 					break;
@@ -51,7 +57,8 @@ void handle_signal(int sig){
 			}
 			break;
 		default:
-			printf("Signal not known!\n");
+			printf("\nSignal not known!\n");
+			fflush(stdout);
 			break;
 	}
 }
@@ -72,7 +79,7 @@ void read_configuration_file(){
 	services_cntr = 0;
 	fp = fopen(conf_name, "r");
 	if (fp == NULL)	{
-		perror("Error while opening configuration file.\n");
+		perror("\nError while opening configuration file.\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -83,7 +90,6 @@ void read_configuration_file(){
 		service_info[services_cntr].pid = NULL_PID;
 		services_cntr++;
 	}
-	printf("Services counter: %d.\n", services_cntr);
 	fclose(fp);
 }
 
@@ -96,8 +102,6 @@ int create_tcp_socket(structure service){
 		perror("Error while creating UDP socket.\n");
 		exit(EXIT_FAILURE);
 	}
-
-	printf("Porta socket TCP creata con successo, sfd: %d.\n", sfd);
 
 	// Initialize server address information
 	server_addr.sin_family = AF_INET;
@@ -128,8 +132,6 @@ int create_udp_socket(structure service){
 		perror("Error while creating UDP socket.\n");
 		exit(EXIT_FAILURE);
 	}
-
-	printf("Porta socket UDP creata con successo, sfd: %d.\n", sfd);
 
 	// Initialize server address information
 	server_addr.sin_family = AF_INET;
@@ -164,7 +166,7 @@ void manage_select(char **env){
 	socklen_t cli_size = sizeof(client_addr);
 
 	while(1){
-		time_wait.tv_sec = 15;
+		time_wait.tv_sec = 10;
 		time_wait.tv_usec = 0;
 		max_sfd = 0;
 		FD_ZERO(&read_set);
@@ -177,10 +179,17 @@ void manage_select(char **env){
 					}
 			}
 		}
+
 		printf("\t---> CALLING SELECT.\n");
 		temp = select(max_sfd+1, &read_set, NULL, NULL, &time_wait);
 		if (temp < 0){
-			printf("Error while executing select on TCP socket: %s.\n\n",strerror(errno));// C'è qualcosa che non va qui
+			if (!is_sigchld){
+				printf("\nError while executing select on TCP socket.\n");
+				break;
+			} else {
+				is_sigchld = FALSE;
+			}
+			
 		} else if (temp == 0){
 			printf("\t---> Timeout expired.\n");
 		} else { 
@@ -191,7 +200,7 @@ void manage_select(char **env){
 						if (strcmp(service_info[i].transport_protocol, "tcp") == 0){
 							new_sfd = accept(service_info[i].sfd, (struct sockaddr *) &client_addr, &cli_size);
 							if (new_sfd < 0){
-								perror("Error while executing accept.\n");
+								perror("\nError while executing accept.\n");
 								exit(EXIT_FAILURE);
 							}
 						}
@@ -215,23 +224,20 @@ void manage_select(char **env){
 							}
 
 							if (execle(service_info[i].service_path, service_info[i].service_name, NULL, env) == -1) {
-								perror("Error while calling execle.\n");
+								perror("\nError while calling execle.\n");
 								fflush(stdout);
 								exit(EXIT_FAILURE);
 							}							
 						} else {
 							//Father Process
+							service_info[i].pid = pid;
 							if (strcmp(service_info[i].transport_protocol, "tcp") == 0){
 								close(new_sfd);
 							}
 							if (strcmp(service_info[i].service_mode, "wait") == 0){
-								printf(" -> Superserver: mi è stato richiesto un servizio wait.\n");
-								fflush(stdout);
-								service_info[i].pid = pid;
 								FD_CLR(service_info[i].sfd, &read_set);
 							} 
-						}
-						
+						}	
 						printf(" -> Superserver: torno alla select.\n\n");
 						fflush(stdout);
 				}
@@ -242,14 +248,13 @@ void manage_select(char **env){
 }
 
 int main(int argc, char **argv, char **env){
+	
 	read_configuration_file();
-
 	fflush(stdout);
-
 	create_sockets();
-
 	print_structure();
 	signal(SIGCHLD, handle_signal); 
 	manage_select(env);
 	return 0;
+
 }
