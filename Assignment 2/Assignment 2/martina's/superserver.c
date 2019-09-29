@@ -43,8 +43,20 @@ void handle_signal(int sig){
 			pid = wait(NULL);
 			is_sigchld = TRUE;
 			for (int i = 0; i < services_cntr; i++){
+				if (service_info[i].pid == pid && strcmp(service_info[i].service_mode, "wait") == 0){
+					printf("\n -> Superserver: La connessione per il servizio %s e' stata chiusa.\n\n", service_info[i].service_port);
+					fflush(stdout);
+					service_info[i].pid = NULL_PID;
+					printf(" -> Superserver: Aggiungo la service port %s in ascolto.\n\n", service_info[i].service_port);
+					fflush(stdout);
+					FD_SET(service_info[i].sfd, &read_set);
+					break;
+				}
+			}
+
+/*			for (int i = 0; i < services_cntr; i++){
 				if (service_info[i].pid == pid){
-					printf("\n -> Superserver: La connessione per il servizio %s e' stata chiusa.\n", service_info[i].service_port);
+					printf("\n -> Superserver: La connessione per il servizio %s e' stata chiusa.\n\n", service_info[i].service_port);
 					fflush(stdout);
 					service_info[i].pid = NULL_PID;
 					if (strcmp(service_info[i].service_mode, "wait") == 0){
@@ -54,7 +66,8 @@ void handle_signal(int sig){
 					}
 					break;
 				}
-			}
+			}*/
+
 			break;
 		default:
 			printf("\nSignal not known!\n");
@@ -230,11 +243,12 @@ void manage_select(char **env){
 							}							
 						} else {
 							//Father Process
-							service_info[i].pid = pid;
+							
 							if (strcmp(service_info[i].transport_protocol, "tcp") == 0){
 								close(new_sfd);
 							}
 							if (strcmp(service_info[i].service_mode, "wait") == 0){
+								service_info[i].pid = pid;
 								FD_CLR(service_info[i].sfd, &read_set);
 							} 
 						}	
