@@ -1,19 +1,19 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/wait.h> 
-#include <string.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <netinet/in.h>
-#include <signal.h>
-#include <errno.h>
+#include<stdio.h>
+#include<string.h>
+#include<stdlib.h>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<sys/time.h>
+#include<sys/wait.h>
+#include<netinet/in.h>
+#include<signal.h>
+#include<errno.h>
+#include<unistd.h>
 
 //Constants and global variable declaration goes here
 #define TRUE 1
 #define FALSE 0
-#define PID_NULL -1 
+#define PID_NULL -1
 #define MAX_NUMBER_OF_SERVICES 10
 #define BACK_LOG 2 // Maximum queued requests
 
@@ -34,6 +34,9 @@ typedef struct node {
 serviceNode services[MAX_NUMBER_OF_SERVICES];
 fd_set readSet;
 
+//Function prototype devoted to handle the death of the son process
+void handle_signal (int sig);
+
 // handle_signal implementation
 void handle_signal (int sig){
 	// Call to wait system-call goes here
@@ -45,7 +48,7 @@ void handle_signal (int sig){
 			p = wait(NULL);
 			signalEvent = TRUE;
 			for(int i = 0; i < numberOfServicesLoaded; i++){
-				if(services[i].pid == p && strcmp(services[i].serviceMode, "wait") == 0){
+				if(services[i].pid == p){
 					FD_SET(services[i].socketFileDescriptor, &readSet);
 					services[i].pid = PID_NULL;
 				}
@@ -66,7 +69,7 @@ void readConfiguration() {
 	if(fd==NULL){
 		printf("Si è verificato un errore in apertura del file");
 		fflush(stdout);
-		exit(EXIT_FAILURE);
+		exit(1);
 	}
 	int i = 0;
 	while(fscanf(fd, "%s %s %s %s\n", services[i].serviceFullPathName, services[i].transportProtocol, services[i].servicePort, services[i].serviceMode) != EOF) {
@@ -76,6 +79,20 @@ void readConfiguration() {
 	}
 	fclose(fd);
 	numberOfServicesLoaded = i;
+}
+
+void printConfiguration() {
+	for(int i = 0; i < numberOfServicesLoaded; i++){
+		printf("%s %s %s %s\n", services[i].serviceName, services[i].transportProtocol, services[i].servicePort, services[i].serviceMode);
+		fflush(stdout);
+	}
+}
+
+void printServicesNode() {
+	for(int i = 0; i < numberOfServicesLoaded; i++){
+		printf("%i° nodo --| Porta: %s | Pid: %i | Transport: %s | Mode: %s\n", i, services[i].servicePort, services[i].pid, services[i].transportProtocol, services[i].serviceMode);
+		fflush(stdout);
+	}
 }
 
 int openTCPSocket(int port) {
@@ -141,13 +158,6 @@ void startServices() {
 	}
 }
 
-void printConfiguration() {
-	for(int i = 0; i < numberOfServicesLoaded; i++){
-		printf("%s %s %s %s\n", services[i].serviceName, services[i].transportProtocol, services[i].servicePort, services[i].serviceMode);
-		fflush(stdout);
-	}
-}
-
 void manageMessage(char **env) {
 	struct sockaddr_in client_address;
 	socklen_t client_size = sizeof(client_address);
@@ -155,6 +165,7 @@ void manageMessage(char **env) {
 	// Scan file descriptors of services to know which one has been activated 
 	for(int i = 0; i < numberOfServicesLoaded; i++){
 		if(FD_ISSET(services[i].socketFileDescriptor, &readSet)){
+			printf("Nasce un figlio\n");
 			// Accept connection
 			int newSocket;
 			if(strcmp(services[i].transportProtocol, "tcp") == 0) {
@@ -169,7 +180,6 @@ void manageMessage(char **env) {
 			int forkPid = fork();
 			int socketToManage;
 			if(forkPid == 0){
-				// Son process
 				if (strcmp(services[i].transportProtocol, "tcp") == 0) {
 					socketToManage = newSocket;
 				} else {
@@ -181,13 +191,8 @@ void manageMessage(char **env) {
 				dup(socketToManage);
 				dup(socketToManage);
 				dup(socketToManage);
-				if(execle(services[i].serviceFullPathName, services[i].serviceName, NULL, env)<0){
-					perror("\nError while calling execle.\n");
-					fflush(stdout);
-					exit(EXIT_FAILURE);
-				}
+				execle(services[i].serviceFullPathName, services[i].serviceName, NULL, env);
 			} else {
-				// Father process
 				if(strcmp(services[i].transportProtocol, "tcp") == 0){
 					close(newSocket);
 				}
@@ -215,7 +220,7 @@ void manageServices(char **env) {
 				}
 			}
 		}
-		timeToWait.tv_sec = 10;
+		timeToWait.tv_sec = 5;
 		timeToWait.tv_usec = 0;
 		int temp = select(maxFD + 1, &readSet, NULL, NULL, &timeToWait);
 		if(signalEvent == FALSE) {
@@ -236,15 +241,12 @@ int  main(int argc,char **argv,char **env){ // NOTE: env is the variable to be p
 	// Other variables declaration goes here
 
 	// Server behavior implementation goes here
-	readConfiguration();
-	startServices();
-    printConfiguration();
-
 	signal (SIGCHLD,handle_signal); /* Handle signals sent by son processes - call this function when it's ought to be */
 
+	readConfiguration();
+	printConfiguration();
+	startServices();
 	manageServices(env);
 
 	return 0;
 }
-
-
