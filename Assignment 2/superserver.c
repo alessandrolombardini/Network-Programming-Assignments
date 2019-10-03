@@ -17,10 +17,10 @@
 #define MAX_NUMBER_OF_SERVICES 10
 #define BACK_LOG 2 // Maximum queued requests
 
-int numberOfServicesLoaded;
-int signalEvent = FALSE;
+int numberOfServicesLoaded; // Number of services inside inetd.conf
+int signalEvent = FALSE; // TRUE if signal has been called
 
-//Service structure definition goes here
+// Service structure definition goes here
 typedef struct node {
 	char transportProtocol[4];
 	char serviceMode[7];
@@ -43,8 +43,7 @@ void handle_signal (int sig){
 		case SIGCHLD : 
 			// Implementation of SIGCHLD handling goes here	
 			p = wait(NULL);
-			signalEvent = TRUE;
-			for(int i = 0; i < numberOfServicesLoaded; i++){
+			for(int i = 0; i < numberOfServicesLoaded; i++) {
 				if(services[i].pid == p && strcmp(services[i].serviceMode, "wait") == 0){
 					FD_SET(services[i].socketFileDescriptor, &readSet);
 					services[i].pid = PID_NULL;
@@ -57,8 +56,10 @@ void handle_signal (int sig){
 			fflush(stdout);
 		break;
 	}
+	signalEvent = TRUE; // Note signal call
 }
 
+/* Read inetd.conf file and save all its data on data structure ('services') */
 void readConfiguration() {
 	FILE *fd;
 
@@ -129,6 +130,7 @@ int openUDPSocket(int port){
 	return serverFD;
 }
 
+/* Start all services readed inside inetd.conf file */
 void startServices() {
 	int fd;
 	for(int i = 0; i < numberOfServicesLoaded; i++){
@@ -137,6 +139,7 @@ void startServices() {
 		} else {
 			fd = openTCPSocket(atoi(services[i].servicePort));
 		}
+		// Save socket file descriptor inside data structure
 		services[i].socketFileDescriptor = fd;
 	}
 }
@@ -155,7 +158,7 @@ void manageMessage(char **env) {
 	// Scan file descriptors of services to know which one has been activated 
 	for(int i = 0; i < numberOfServicesLoaded; i++){
 		if(FD_ISSET(services[i].socketFileDescriptor, &readSet)){
-			// Accept connection
+			// Accept connection if it's TCP
 			int newSocket;
 			if(strcmp(services[i].transportProtocol, "tcp") == 0) {
 				newSocket = accept(services[i].socketFileDescriptor, (struct sockaddr *)&client_address, &client_size);
@@ -181,7 +184,7 @@ void manageMessage(char **env) {
 				dup(socketToManage);
 				dup(socketToManage);
 				dup(socketToManage);
-				if(execle(services[i].serviceFullPathName, services[i].serviceName, NULL, env)<0){
+				if(execle(services[i].serviceFullPathName, services[i].serviceName, NULL, env) < 0){
 					perror("\nError while calling execle.\n");
 					fflush(stdout);
 					exit(EXIT_FAILURE);
@@ -204,7 +207,7 @@ void manageServices(char **env) {
 	struct timeval timeToWait;
 	
 	while(TRUE) {
-		// Load file descriptors of services on a set 
+		// Load file descriptors of services on a fd_set before empty that
 		FD_ZERO(&readSet);
 		int maxFD = 0;
 		for(int i = 0; i < numberOfServicesLoaded; i++){
@@ -218,11 +221,11 @@ void manageServices(char **env) {
 		timeToWait.tv_sec = 10;
 		timeToWait.tv_usec = 0;
 		int temp = select(maxFD + 1, &readSet, NULL, NULL, &timeToWait);
-		if(signalEvent == FALSE) {
+		if(signalEvent == FALSE) { // Check if select has been interrupted by a signal
 			if(temp < 0){
 				printf("Select error\n");
 			} else if(temp == 0){
-				//printf("Timeout expired\n");
+				printf("Timeout expired\n");
 			} else {
 				manageMessage(env);
 			}
