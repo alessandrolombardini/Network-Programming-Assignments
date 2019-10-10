@@ -45,6 +45,7 @@ void handle_signal (int sig){
 			p = wait(NULL);
 			for(int i = 0; i < numberOfServicesLoaded; i++) {
 				if(services[i].pid == p && strcmp(services[i].serviceMode, "wait") == 0){
+					printf("\n -> Superserver: La connessione per il servizio %s e' stata chiusa.\n\n", services[i].servicePort);
 					FD_SET(services[i].socketFileDescriptor, &readSet);
 					services[i].pid = PID_NULL;
 				}
@@ -159,6 +160,7 @@ void manageMessage(char **env) {
 	for(int i = 0; i < numberOfServicesLoaded; i++){
 		if(FD_ISSET(services[i].socketFileDescriptor, &readSet)){
 			// Accept connection if it's TCP
+			printf("\n -> Superserver: Selected %s service port.\n", services[i].servicePort);
 			int newSocket;
 			if(strcmp(services[i].transportProtocol, "tcp") == 0) {
 				newSocket = accept(services[i].socketFileDescriptor, (struct sockaddr *)&client_address, &client_size);
@@ -225,9 +227,10 @@ void manageServices(char **env) {
 			if(temp < 0){
 				printf("Select error\n");
 			} else if(temp == 0){
-				printf("Timeout expired\n");
+				printf("\t---> Timeout expired.\n"); 
 			} else {
 				manageMessage(env);
+				usleep(1);
 			}
 		} else {
 			signalEvent = FALSE;
