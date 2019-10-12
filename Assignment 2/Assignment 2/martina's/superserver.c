@@ -202,7 +202,6 @@ void manage_select(char **env){
 			} else {
 				is_sigchld = FALSE;
 			}
-			
 		} else if (temp == 0){
 			printf("\t---> Timeout expired.\n");
 		} else { 
@@ -219,7 +218,7 @@ void manage_select(char **env){
 						}
 
 						pid = fork();
-						
+						usleep(50);
 						if (pid == 0){
 							//Son Process
 							close(0);
