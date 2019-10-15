@@ -3,8 +3,10 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <time.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include "myfunction.h"
@@ -117,23 +119,42 @@ void sendProbeMessages(){
     strcat(completeMessage, payload);
     sumOfBits+=strlen(completeMessage)*8;
     // Send probe message and check its responde
+    // char receivedData[MAX_BUFFER_SIZE]="\0";
+    // send(service.serverFD, completeMessage, strlen(completeMessage), 0);
+    // clock_t start = clock();
+    // printf("(CLIENT) Message sent: %s\n", completeMessage);
+    // recv(service.serverFD, receivedData, MAX_BUFFER_SIZE, 0);
+    // clock_t end = clock();
+    // printf("\n\nEnd - start: %f", (double)end-start);
+    // rttOfProbes[i] = ((double) ((double)(end-start) / CLOCKS_PER_SEC)) * 1000;
+    // printf("(CLIENT) Message received: %s\n", receivedData);
+    // printf("(CLIENT) RTT of probe message number %i - %f milliseconds\n\n", i+1, rttOfProbes[i]);
+    // if(strcmp(receivedData, completeMessage) != 0){
+    //   printf("(CLIENT) Error: server reject probe message\n");
+    //   exit(EXIT_FAILURE);
+    // }   
+
+    // Send probe message and check its responde
+    struct timeval start, end;
     char receivedData[MAX_BUFFER_SIZE]="\0";
+
     send(service.serverFD, completeMessage, strlen(completeMessage), 0);
-    clock_t start = clock();
+    gettimeofday(&start, NULL);
     printf("(CLIENT) Message sent: %s\n", completeMessage);
     recv(service.serverFD, receivedData, MAX_BUFFER_SIZE, 0);
-    clock_t end = clock();
-    rttOfProbes[i] = (double)(end-start) * 1000 / CLOCKS_PER_SEC;
-    printf("Seconds: %f", rttOfProbes[i]);
+    gettimeofday(&end, NULL);
+
+    rttOfProbes[i] = (float)(end.tv_usec - start.tv_usec)*1000;
+
     printf("(CLIENT) Message received: %s\n", receivedData);
-    printf("(CLIENT) RTT of probe message number %i - %i milliseconds\n\n", i+1, rttOfProbes[i]);
+    printf("(CLIENT) RTT of probe message number %i - %f seconds\n\n", i+1, rttOfProbes[i]);
     if(strcmp(receivedData, completeMessage) != 0){
       printf("(CLIENT) Error: server reject probe message\n");
       exit(EXIT_FAILURE);
     }   
   }
   if(strcmp(service.measureType, "rtt") == 0){
-    printf("RTT: %f milliseconds\n\n", evaluateRTT(rttOfProbes)/1000);
+    printf("RTT: %f seconds\n\n", evaluateRTT(rttOfProbes));
   } else{
     printf("Throughtput: %f kilobits/seconds\n\n", (sumOfBits/1000) /evaluateRTT(rttOfProbes));
   }
