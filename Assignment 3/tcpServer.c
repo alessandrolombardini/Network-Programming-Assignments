@@ -6,10 +6,10 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include "myfunction.h"
 
 #define MAX_BUF_SIZE 1024
-#define SERVER_PORT 9876 // Server port
 #define BACK_LOG 2 // Maximum queued requests
 #define STRING_SPLITTER " "
 #define BOOL int 
@@ -71,6 +71,11 @@ int main(int argc, char *argv[]){
     char receivedData [MAX_BUF_SIZE]; // Data to be received
     char sendData [MAX_BUF_SIZE]; // Data to be sent
 
+    if (argc != 2) {
+            printf("\nErrore numero errato di parametri\n");
+            printf("\n%s <server port>\n", argv[0]);
+            exit(EXIT_FAILURE);
+    }
     serverFD = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (serverFD < 0){
         perror("socket error"); 
@@ -78,7 +83,7 @@ int main(int argc, char *argv[]){
     }
     // Initialize server address information
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(SERVER_PORT); 
+    server_addr.sin_port = htons(atoi(argv[1])); 
     server_addr.sin_addr.s_addr = INADDR_ANY; 
     // Binding address
     bindResult = bind(serverFD, (struct sockaddr *) &server_addr, sizeof(server_addr));
@@ -101,6 +106,8 @@ int main(int argc, char *argv[]){
             perror("accept error"); 
             exit(EXIT_FAILURE);
         }
+        
+        printf("Connessione eseguita (IP: %s | Porta: %d)\n",  inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         // Accept connection and be ready to accept request of service
         service.phaseNumber = READY_TO_REQUEST;
         service.connectionFD = acceptFD;
@@ -112,6 +119,9 @@ int main(int argc, char *argv[]){
                 exit(EXIT_FAILURE);
             }
             printf("(SERVER) Message received: %s\n", data);
+            if(service.serverDelay > 0){
+                sleep(service.serverDelay);
+            }
             if(manageMessage(data)==FALSE) {
                 initilizeService();
             }

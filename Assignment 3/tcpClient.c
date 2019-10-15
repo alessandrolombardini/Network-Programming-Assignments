@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -21,6 +22,7 @@ void parseHelloMessage(char mess[]);
 void sendHelloMessage();
 void sendProbeMessages();
 void sendByeMessage();
+float evaluateRTT(float rttOfProbes[]);
 
 BOOL isNumber(char * token);
 int getNumber(char * token);
@@ -104,6 +106,8 @@ void sendProbeMessages(){
   }
   payload[i]='\0'; /* I don't know why it works */
   // Manage probe messages
+  float rttOfProbes[service.nProbes];
+  int sumOfBits = 0;
   for(i = 0; i < service.nProbes; i++){
     // Create probe message
     char completeMessage[MAX_BUFFER_SIZE] = "m ";
@@ -111,17 +115,36 @@ void sendProbeMessages(){
     sprintf(sequenceNumber, "%d ", i+1);
     strcat(completeMessage, sequenceNumber);
     strcat(completeMessage, payload);
+    sumOfBits+=strlen(completeMessage)*8;
     // Send probe message and check its responde
     char receivedData[MAX_BUFFER_SIZE]="\0";
     send(service.serverFD, completeMessage, strlen(completeMessage), 0);
+    clock_t start = clock();
     printf("(CLIENT) Message sent: %s\n", completeMessage);
     recv(service.serverFD, receivedData, MAX_BUFFER_SIZE, 0);
+    clock_t end = clock();
+    rttOfProbes[i] = (double)(end-start) * 1000 / CLOCKS_PER_SEC;
+    printf("Seconds: %f", rttOfProbes[i]);
     printf("(CLIENT) Message received: %s\n", receivedData);
+    printf("(CLIENT) RTT of probe message number %i - %i milliseconds\n\n", i+1, rttOfProbes[i]);
     if(strcmp(receivedData, completeMessage) != 0){
       printf("(CLIENT) Error: server reject probe message\n");
       exit(EXIT_FAILURE);
     }   
   }
+  if(strcmp(service.measureType, "rtt") == 0){
+    printf("RTT: %f milliseconds\n\n", evaluateRTT(rttOfProbes)/1000);
+  } else{
+    printf("Throughtput: %f kilobits/seconds\n\n", (sumOfBits/1000) /evaluateRTT(rttOfProbes));
+  }
+}
+
+float evaluateRTT(float rttOfProbes[]){
+  float total = 0;
+  for(int i = 0; i < service.nProbes; i++){
+    total += rttOfProbes[i];
+  }
+  return total/service.nProbes;
 }
 
 /* Send hello message to the server and receive its response */
