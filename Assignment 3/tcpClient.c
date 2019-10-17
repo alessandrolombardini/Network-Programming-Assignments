@@ -86,9 +86,11 @@ int main(int argc, char *argv[]){
 
 /* Send bye message to the server and receive its response */
 void sendByeMessage(){
+  char byemessage[3]="b\n\0";
   char receivedData[MAX_BUFFER_SIZE]="\0";
-  send(service.serverFD, "b", 1, 0);
-  printf("(CLIENT) Message sent: b\n");
+
+  send(service.serverFD, byemessage, strlen(byemessage), 0);
+  printf("(CLIENT) Message sent: %s\n", byemessage);
   recv(service.serverFD, receivedData, MAX_BUFFER_SIZE, 0);
   printf("(CLIENT) Message received: %s\n", receivedData);
   if(strcmp(receivedData, "200 OK - Closing") != 0){
@@ -109,7 +111,7 @@ void sendProbeMessages(){
   payload[i]='\0'; /* I don't know why it works */
   // Manage probe messages
   float rttOfProbes[service.nProbes];
-  int sumOfBits = 0;
+  float numberOfBits = 0;
   for(i = 0; i < service.nProbes; i++){
     // Create probe message
     char completeMessage[MAX_BUFFER_SIZE] = "m ";
@@ -117,46 +119,31 @@ void sendProbeMessages(){
     sprintf(sequenceNumber, "%d ", i+1);
     strcat(completeMessage, sequenceNumber);
     strcat(completeMessage, payload);
-    sumOfBits+=strlen(completeMessage)*8;
-    // Send probe message and check its responde
-    // char receivedData[MAX_BUFFER_SIZE]="\0";
-    // send(service.serverFD, completeMessage, strlen(completeMessage), 0);
-    // clock_t start = clock();
-    // printf("(CLIENT) Message sent: %s\n", completeMessage);
-    // recv(service.serverFD, receivedData, MAX_BUFFER_SIZE, 0);
-    // clock_t end = clock();
-    // printf("\n\nEnd - start: %f", (double)end-start);
-    // rttOfProbes[i] = ((double) ((double)(end-start) / CLOCKS_PER_SEC)) * 1000;
-    // printf("(CLIENT) Message received: %s\n", receivedData);
-    // printf("(CLIENT) RTT of probe message number %i - %f milliseconds\n\n", i+1, rttOfProbes[i]);
-    // if(strcmp(receivedData, completeMessage) != 0){
-    //   printf("(CLIENT) Error: server reject probe message\n");
-    //   exit(EXIT_FAILURE);
-    // }   
+    strcat(completeMessage, "\n");
+    numberOfBits=strlen(completeMessage)*8;
 
     // Send probe message and check its responde
-    struct timeval start, end;
+    struct timespec start, end;
     char receivedData[MAX_BUFFER_SIZE]="\0";
-
     send(service.serverFD, completeMessage, strlen(completeMessage), 0);
-    gettimeofday(&start, NULL);
+    clock_gettime(CLOCK_REALTIME, &start);
     printf("(CLIENT) Message sent: %s\n", completeMessage);
     recv(service.serverFD, receivedData, MAX_BUFFER_SIZE, 0);
-    gettimeofday(&end, NULL);
-
-    rttOfProbes[i] = (float)(end.tv_usec - start.tv_usec)*1000;
-
+    clock_gettime(CLOCK_REALTIME, &end);
+    rttOfProbes[i] = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000; // RTT in microseconds
     printf("(CLIENT) Message received: %s\n", receivedData);
-    printf("(CLIENT) RTT of probe message number %i - %f seconds\n\n", i+1, rttOfProbes[i]);
+    printf("(CLIENT) RTT of probe message number %i - %f milliseconds\n\n", i+1, rttOfProbes[i]/1000);
     if(strcmp(receivedData, completeMessage) != 0){
       printf("(CLIENT) Error: server reject probe message\n");
       exit(EXIT_FAILURE);
     }   
   }
   if(strcmp(service.measureType, "rtt") == 0){
-    printf("RTT: %f seconds\n\n", evaluateRTT(rttOfProbes));
+    printf("Average RTT: %f milliseconds\n\n", evaluateRTT(rttOfProbes)/1000);
   } else{
-    printf("Throughtput: %f kilobits/seconds\n\n", (sumOfBits/1000) /evaluateRTT(rttOfProbes));
+    printf("Byte nr: %f\n", numberOfBits/8);
+    printf("Average RTT: %f milliseconds\n", (evaluateRTT(rttOfProbes)/1000));
+    printf("Throughtput: %f kilobits/seconds\n\n", (numberOfBits/1000) /(evaluateRTT(rttOfProbes)/1000000));
   }
 }
 
@@ -190,6 +177,7 @@ void sendHelloMessage(){
     perror("(CLIENT) Error: Hello message format isn't correct \n");
     exit(EXIT_FAILURE);
   }
+  strcat(buffer, "\n");
   // Send hello message to the server and check its response
   send(service.serverFD, buffer, strlen(buffer), 0);
   printf("(CLIENT) Message sent: %s\n", buffer);

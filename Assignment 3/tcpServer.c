@@ -164,7 +164,7 @@ BOOL manageProbeMessage(char * message){
     if(checkProbeMessage(message)){
         sendMessage(message);
         return TRUE;
-    }else{
+    } else {
         sendMessage("404 ERROR - Invalid Measurement message");
         return FALSE;
     }
@@ -243,7 +243,10 @@ BOOL checkProbeMessage(char mess[]){
     int numberOfBytes = 0;
     token = strtok(NULL, "");
     if(token != NULL){
-        numberOfBytes = strlen(token);
+        if(token[strlen(token)-1]!='\n'){
+            return FALSE;
+        }
+        numberOfBytes = strlen(token)-1;
     }
     if(service.messageSize != numberOfBytes){
         return FALSE;
@@ -263,7 +266,7 @@ BOOL checkByeMessage(char mess[]){
     strcpy(message, mess);
     /* Check protocol phase */
     token = strtok(message, STRING_SPLITTER);
-    if(token == NULL || strcmp(token, "b") != 0){
+    if(token == NULL || strcmp(token, "b\n") != 0){
         return FALSE;
     }
     /* All is ok */
