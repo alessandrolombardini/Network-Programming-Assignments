@@ -9,7 +9,7 @@
 #include <arpa/inet.h>
 #include "myfunction.h"
 
-#define MAX_BUF_SIZE 120000          /* Maximum size of TCP messages */
+#define MAX_BUF_SIZE 32768          /* Maximum size of TCP messages */
 #define BACK_LOG 2                  /* Maximum queued requests */
 #define NO_CONNECTION_STATE 0       /* First state */
 #define READY_TO_REQUEST 1          /* Second state */
