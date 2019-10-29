@@ -11,17 +11,17 @@
 #include <netinet/in.h>
 #include "myfunction.h"
 
-#define STRING_HELLO_RESPOSE_OK        "200 OK - Ready"
-#define STRING_HELLO_RESPONE_NOT_OK    "404 ERROR - Invalid Hello Message"
-#define STRING_BYE_RESPONSE_OK         "200 OK - Closing"
-#define min(a,b) (((a) < (b)) ? (a) : (b))
+#define STRING_HELLO_RESPOSE_OK        "200 OK - Ready"                       /* Positive response awaited from server after send the hello message */
+#define STRING_HELLO_RESPONE_NOT_OK    "404 ERROR - Invalid Hello Message"    /* Negative response awaited from server after send the hello message */
+#define STRING_BYE_RESPONSE_OK         "200 OK - Closing"                     /* Positive response awaited from server after send the bye message */
+#define min(a,b) (((a) < (b)) ? (a) : (b))                        
 #define MAX_BUFFER_SIZE 32768           /* Maximum size of TCP messages */
 #define INPUT_FILE_NAME "init.conf"     /* Name of the file where the hello message is conteined */
 #define PAYLOAD_CHARACTER 'a'           /* Character of payload of messages that has to be sent */
 #define HELLO_PHASE 1                   /* We have to send hello message and receive its response */
 #define PROBE_PHASE 2                   /* We have to send probe message and receive its response */
 #define BYE_PHASE 3                     /* We have to send bye message and receive its response */
-#define STRING_SPLITTER " "           
+#define STRING_SPLITTER " "             /* String splitter of the hello message */
 #define BOOL int 
 #define TRUE 1
 #define FALSE 0
@@ -34,7 +34,7 @@ void sendByeMessage();                  /* Send a bye message to the server and 
 float evaluateRTT(float rttOfProbes[]); /* Bye a sequence of RTT, it extract an avarage value */ 
 BOOL isNumber(char * token);            /* Check if a string is a number */
 int getNumber(char * token);            /* Extract a number by a string (1 if it's not a number) */
-char * receiveMessage();           /* Allows to received the completed next message */ 
+char * receiveMessage();                /* Allows to received the completed next message */ 
 
 /* Service structure definition goes here */
 typedef struct node {
@@ -128,19 +128,19 @@ void parseInputString(char mess[]){
   char message[strlen(mess)];
 
   strcpy(message, mess);
-  /* Check protocol phase character */
+  /* Extract protocol phase character */
   token = strtok(message, STRING_SPLITTER);
   strcpy(service.protocolPhase, token);
-  /* Check measure type characters */
+  /* Extract measure type characters */
   token = strtok(NULL, STRING_SPLITTER);
   strcpy(service.measureType, token);
-  /* Check number of probes characters */
+  /* Extract number of probes characters */
   token = strtok(NULL, STRING_SPLITTER);
   service.nProbes = getNumber(token);
-  /* Check message size characters */
+  /* Extract message size characters */
   token = strtok(NULL, STRING_SPLITTER);
   service.messageSize = getNumber(token);
-  /* Check server delay characters */
+  /* Extract server delay characters */
   token = strtok(NULL, STRING_SPLITTER);
   service.serverDelay = getNumber(token);
   service.phaseNumber = 1;
@@ -181,11 +181,10 @@ void sendHelloMessage(){
 }
 
 void sendProbeMessages(){
-  char payload[service.messageSize + 1];            /* Contains the payload */
-  float rttOfProbes[service.nProbes];               /* RTT probes values */
-  int numberOfBits = 0;                           /* Size of the probe message in bit */
-  struct timespec start, end;                       /* Variabiles usefull to take the RTT */
-  BOOL messageIsComplete = FALSE; 
+  char payload[service.messageSize + 1];    /* Contains the payload */
+  float rttOfProbes[service.nProbes];       /* RTT probes values */
+  int numberOfBits = 0;                     /* Size of the probe message in bit */
+  struct timespec start, end;               /* Variabiles usefull to take the RTT */
   int i;
   
   /* Create appropriate payload */
@@ -211,6 +210,7 @@ void sendProbeMessages(){
     char * completeMessageReceived = receiveMessage();
     clock_gettime(CLOCK_REALTIME, &end);
     if(strcmp(finalMessageToSend, completeMessageReceived) != 0){
+      free(completeMessageReceived);
       printf("(CLIENT) Error: server reject probe message\n");
       exit(EXIT_FAILURE);
     }

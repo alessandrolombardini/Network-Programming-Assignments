@@ -15,7 +15,7 @@
 #define READY_TO_REQUEST 1          /* Second state */
 #define ECHO_STATE 2                /* Third state */
 #define BYE_STATE 3                 /* Fourth state */
-#define STRING_SPLITTER " "
+#define STRING_SPLITTER " "         /* String splitter of the hello message */
 #define BOOL int 
 #define TRUE 1
 #define FALSE 0
@@ -146,6 +146,7 @@ int main(int argc, char *argv[]){
 
 void sendMessage(char * message) {
     send(service.connectionFD, message, strlen(message), 0);
+    /* If the message has alredy the character \n in the end, the printf doesn't add one */
     if(message[strlen(message)-1]=='\n'){
         printf("(SERVER) Message sent: %s", message);
     } else {
@@ -155,7 +156,7 @@ void sendMessage(char * message) {
 
 BOOL manageMessage(char mess[]){
     BOOL check = TRUE;
-    /* Check message with message format awaited */
+    /* Compare message with the message format awaited and return if it's valid or not */
     if(service.phaseNumber == READY_TO_REQUEST){
        return manageHelloMessage(mess);
     } else if(service.phaseNumber == ECHO_STATE){
