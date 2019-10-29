@@ -9,45 +9,44 @@
 #include <arpa/inet.h>
 #include "myfunction.h"
 
-#define MAX_BUF_SIZE 1024
-#define BACK_LOG 2 // Maximum queued requests
+#define MAX_BUF_SIZE 120000          /* Maximum size of TCP messages */
+#define BACK_LOG 2                  /* Maximum queued requests */
+#define NO_CONNECTION_STATE 0       /* First state */
+#define READY_TO_REQUEST 1          /* Second state */
+#define ECHO_STATE 2                /* Third state */
+#define BYE_STATE 3                 /* Fourth state */
 #define STRING_SPLITTER " "
 #define BOOL int 
 #define TRUE 1
 #define FALSE 0
-#define NO_CONNECTION_STATE 0
-#define READY_TO_REQUEST 1 
-#define ECHO_STATE 2
-#define BYE_STATE 3
 
-BOOL manageMessage(char * mess);
-BOOL checkHelloMessage(char * mess); 
-BOOL checkProbeMessage(char mess[]);
-BOOL checkByeMessage(char mess[]);
-BOOL manageHelloMessage(char * message);
-BOOL manageProbeMessage(char * message);
-BOOL manageByeMessage(char * message);
-BOOL isNumber(char * token);
-int getNumber(char * token);
-void sendMessage(char * message);
-void printService();
-void initilizeService();
+BOOL manageMessage(char * mess);            /* Call to manage every message passed */
+BOOL checkHelloMessage(char * mess);        /* Check if the message passed is a valid hello message */
+BOOL checkProbeMessage(char mess[]);        /* Check if the message passed is a valid probe message */
+BOOL checkByeMessage(char mess[]);          /* Check if the message passed is a valid bye message */
+BOOL manageHelloMessage(char * message);    /* Manage the response to the hello message */
+BOOL manageProbeMessage(char * message);    /* Manage the response to the probe message */
+BOOL manageByeMessage(char * message);      /* Manage the response to the bye message */
+BOOL isNumber(char * token);                /* Check if a string is a number */
+int getNumber(char * token);                /* Get a number by a string */
+void sendMessage(char * message);           /* Send the message passed to the server */
+void printService();                        /* Print all information about the service requested by the client */
+void initilizeService();                    /* Set the server on the intial state */
 
-// Service structure definition goes here
+/* Service structure definition goes here */
 typedef struct node {
-	char protocolPhase[2];
-	char measureType[4];
-	int nProbes;
-	int messageSize;
-	int serverDelay;
+	char protocolPhase[2];  /* Actual protocol phase */ 
+	char measureType[4];    /* Service requested - RTT or THROUGHPUT */
+	int nProbes;      /* Number of probes to send */
+	int messageSize;  /* Size of payload to send in the probe message */
+	int serverDelay;  /* Delay of response to the probe message (in seconds) */
     int connectionFD; /* File descriptor of socket */
-    int phaseNumber; /* 0: Ready to accept connection | 
-                        1: Ready to accept service request | 
-                        2: Ready to echo back | 
-                        3: Ready response to bye */
+    int phaseNumber;  /* 0: Ready to accept connection | 
+                         1: Ready to accept service request | 
+                         2: Ready to echo back | 
+                         3: Ready response to bye */
     int probeSequenceNumberAwaited; /* Sequence awaited: have to be in phase 2 to be usefull*/
 } serviceNode;
-
 serviceNode service;
 
 void initilizeService() {
@@ -57,84 +56,101 @@ void initilizeService() {
 }
 
 int main(int argc, char *argv[]){
-    struct sockaddr_in server_addr; // struct containing server address information
-    struct sockaddr_in client_addr; // struct containing client address information
-    int serverFD; // Server socket filed descriptor
-    int acceptFD; // Client communication socket - Accept result
-    int bindResult; // Bind result
-    int listenResult; // Listen result
-    int i;
-    int stop = 0;
-    ssize_t byteRecv; // Number of bytes received
-    ssize_t byteSent; // Number of bytes to be sent
+    struct sockaddr_in server_addr;         /* Struct containing server address information */
+    struct sockaddr_in client_addr;         /* struct containing client address information */
+    int serverFD;                           /* Server socket filed descriptor */
+    int acceptFD;                           /* Accept result */
+    int bindResult;                         /* Bind result */
+    int listenResult;                       /* Listen result */
+    ssize_t byteRecv;                       /* Number of bytes received */
+    ssize_t byteSent;                       /* Number of bytes to be sent */
     socklen_t cli_size;
-    char receivedData [MAX_BUF_SIZE]; // Data to be received
-    char sendData [MAX_BUF_SIZE]; // Data to be sent
+    char sendData [MAX_BUF_SIZE];           /* Buffer of data to be sent */
+    char * receivedData;                    /* Buffer of received data */
+    char * completeMessageReceived;         /* Complete message received: this is the sum of all pieces that can arrive*/ 
+    BOOL messageIsComplete = FALSE;         /* Check if the message is all arrived or not */
 
+    /* Check if number of params passed is correct */
     if (argc != 2) {
             printf("\nErrore numero errato di parametri\n");
             printf("\n%s <server port>\n", argv[0]);
             exit(EXIT_FAILURE);
     }
+    /* Open TCP server */
     serverFD = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (serverFD < 0){
         perror("socket error"); 
         exit(EXIT_FAILURE);
     }
-    // Initialize server address information
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(atoi(argv[1])); 
     server_addr.sin_addr.s_addr = INADDR_ANY; 
-    // Binding address
     bindResult = bind(serverFD, (struct sockaddr *) &server_addr, sizeof(server_addr));
     if (bindResult < 0){
         perror("bind error"); 
         exit(EXIT_FAILURE);
     }
     cli_size = sizeof(client_addr);
-    // Listen for incoming requests
     listenResult = listen(serverFD, BACK_LOG);
     if (listenResult < 0){
         perror("listen error"); 
         exit(EXIT_FAILURE);
     }
+    /* Set the first state of the server */
     initilizeService();
+    /* Start server */
     while(TRUE){
-        // Wait for incoming requests
+        /* Wait for incoming requests by clients */
         acceptFD = accept(serverFD, (struct sockaddr *) &client_addr, &cli_size);
         if (acceptFD < 0){
             perror("accept error"); 
             exit(EXIT_FAILURE);
         }
-        
         printf("Connessione eseguita (IP: %s | Porta: %d)\n",  inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-        // Accept connection and be ready to accept request of service
+        /* Be ready to accept request of service */
         service.phaseNumber = READY_TO_REQUEST;
         service.connectionFD = acceptFD;
-        while(service.phaseNumber != NO_CONNECTION_STATE){  // While there is communication keep connection alive
-            char data[MAX_BUF_SIZE]="\0"; /* In this way i'm sure to take only byteRecv byte */
-            byteRecv = recv(service.connectionFD, data, MAX_BUF_SIZE, 0);
-            if (byteRecv < 0){
-                perror("recv");
-                exit(EXIT_FAILURE);
-            }
-            printf("(SERVER) Message received: %s\n", data);
-            if(service.serverDelay > 0){
-                sleep(service.serverDelay);
-            }
-            if(manageMessage(data)==FALSE) {
-                initilizeService();
-            }
+        while(service.phaseNumber != NO_CONNECTION_STATE ){  /* While there is connection keep connection alive */
+            completeMessageReceived = (char *)calloc(MAX_BUF_SIZE, sizeof(char));
+            /** In this phase I need to check if the message just arrived is complete:
+                this becouse it's possible that it doesnt' arrive in just one message,
+                but in multiple message **/
+            for(;messageIsComplete==FALSE;){
+                /* Receive one piece of the message */
+                receivedData = (char *)calloc(MAX_BUF_SIZE, sizeof(char));
+                byteRecv = recv(service.connectionFD, receivedData, MAX_BUF_SIZE, 0);
+                if (byteRecv < 0){
+                    perror("recv");
+                    exit(EXIT_FAILURE);
+                }
+                strcat(completeMessageReceived, receivedData);
+                free(receivedData);
+                /* Check if the message received at the moment is complete (has \n) */
+                if(completeMessageReceived[strlen(completeMessageReceived) - 1] == '\n') { 
+                    printf("(SERVER) Message received: %s", completeMessageReceived);
+                    sleep(service.serverDelay > 0 ? service.serverDelay : 0);
+                    if(manageMessage(completeMessageReceived)==FALSE) {
+                        initilizeService();
+                    }
+                    free(completeMessageReceived);
+                    messageIsComplete=TRUE;
+                }
+            } 
+            messageIsComplete=FALSE;
         }
+        /* Close connection */
         printf("Connection close\n");
         close(acceptFD);
-        initilizeService();
     }
 }
 
 void sendMessage(char * message) {
     send(service.connectionFD, message, strlen(message), 0);
-    printf("(SERVER) Message sent: %s\n", message);
+    if(message[strlen(message)-1]=='\n'){
+        printf("(SERVER) Message sent: %s", message);
+    } else {
+        printf("(SERVER) Message sent: %s\n", message);
+    }
 }
 
 BOOL manageMessage(char mess[]){
@@ -181,7 +197,6 @@ BOOL manageByeMessage(char * message){
 
 
 BOOL checkHelloMessage(char mess[]){
-    int numero;
     char * token;
     char message[strlen(mess)];
 
@@ -251,7 +266,7 @@ BOOL checkProbeMessage(char mess[]){
     if(service.messageSize != numberOfBytes){
         return FALSE;
     }
-    /* All is ok */
+    /* All is ok - set next phase */
     if(service.probeSequenceNumberAwaited == service.nProbes){
         service.phaseNumber = BYE_STATE;
     }
@@ -273,7 +288,6 @@ BOOL checkByeMessage(char mess[]){
     return TRUE;
 } 
 
-/* Check if a string is a number and if that number is greater than zero */
 BOOL isNumber(char * token){
     int numero = atoi(token);
     if(numero == 0 && token[0] != '0'){
@@ -282,7 +296,6 @@ BOOL isNumber(char * token){
     return TRUE;
 }
 
-/* Get number by a string */
 int getNumber(char * token){
     return atoi(token);
 }
