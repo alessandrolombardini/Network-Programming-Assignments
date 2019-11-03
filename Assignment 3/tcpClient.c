@@ -19,9 +19,9 @@
 #define MAX_BUFFER_SIZE 32768           /* Maximum size of TCP messages */
 #define INPUT_FILE_NAME "init.conf"     /* Name of the file where the hello message is conteined */
 #define PAYLOAD_CHARACTER 'a'           /* Character of payload of messages that has to be sent */
-#define WAIT_HELLO_MESSAGE_RESPONSE 1   /* We have to send hello message and receive its response */
-#define WAIT_PROBE_MESSAGE_RESPONSE  2   /* We have to send probe message and receive its response */
-#define WAIT_BYE_MESSAGE_RESPONSE   3   /* We have to send bye message and receive its response */
+#define WAIT_HELLO_MESSAGE_RESPONSE  1  /* We have to send hello message and receive its response */
+#define WAIT_PROBE_MESSAGE_RESPONSE  2  /* We have to send probe message and receive its response */
+#define WAIT_BYE_MESSAGE_RESPONSE    3  /* We have to send bye message and receive its response */
 #define STRING_SPLITTER " "             /* String splitter of the hello message */
 #define BOOL int 
 #define TRUE 1
@@ -36,7 +36,7 @@ float evaluateRTT(float rttOfProbes[]); /* Bye a sequence of RTT, it extract an 
 BOOL isNumber(char * token);            /* Check if a string is a number */
 int getNumber(char * token);            /* Extract a number by a string (1 if it's not a number) */
 char * receiveMessage();                /* Allows to received the completed next message */ 
-BOOL readFile();                      /* Read init.conf, check if it's valid and load its values in the data structure */
+BOOL readFile();                        /* Read init.conf, check if it's valid and load its values in the data structure */
 
 /* Service structure definition goes here */
 typedef struct node {
@@ -235,7 +235,7 @@ void sendProbeMessages(){
 }
 
 void sendByeMessage(){
-  char byemessage[3]="c\n\0";
+  char byemessage[3]="b\n\0";
 
   send(service.serverFD, byemessage, strlen(byemessage), 0);
   printf("(CLIENT) Message sent: %s", byemessage);
