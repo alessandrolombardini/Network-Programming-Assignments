@@ -154,6 +154,7 @@ void sendHelloMessage(){
   fileFD = fopen(INPUT_FILE_NAME, "r");
   if(fileFD == NULL){
     perror("(CLIENT) Opening file error\n");
+    close(service.serverFD);
     exit(EXIT_FAILURE);
   }
   fgets(sendData, MAX_BUFFER_SIZE, fileFD);
@@ -164,6 +165,7 @@ void sendHelloMessage(){
     parseInputString(sendData);
   } else{
     perror("(CLIENT) Error: Hello message format isn't correct \n");
+    close(service.serverFD);
     exit(EXIT_FAILURE);
   }
   strcat(sendData, "\n");
@@ -175,6 +177,7 @@ void sendHelloMessage(){
   if(strncmp(completeReceivedMessage, STRING_HELLO_RESPOSE_OK, strlen(completeReceivedMessage)) != 0){
       free(completeReceivedMessage);
       printf("(CLIENT) Error: server reject hello message\n");
+      close(service.serverFD);
       exit(EXIT_FAILURE);
   }
   free(completeReceivedMessage);
@@ -212,13 +215,14 @@ void sendProbeMessages(){
     if(strcmp(finalMessageToSend, completeMessageReceived) != 0){
       free(completeMessageReceived);
       printf("(CLIENT) Error: server reject probe message\n");
+      close(service.serverFD);
       exit(EXIT_FAILURE);
     }
     printf("(CLIENT) Message received: %s", completeMessageReceived); 
     free(completeMessageReceived);
     /* Calculate RTT of probe message */
-    rttOfProbes[i] = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000; // RTT in microseconds
-    printf("(CLIENT) RTT of probe message number %i - %f milliseconds\n\n", i+1, rttOfProbes[i]/1000);
+    rttOfProbes[i] = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;      /* RTT in microseconds */
+    printf("(CLIENT) RTT of probe message number %i - %f milliseconds\n\n", i+1, rttOfProbes[i]/1000);  
   }
   /* Show response to the request of service, that could be RTT or THROUGHPUT */
   if(strcmp(service.measureType, "rtt") == 0){
@@ -240,8 +244,10 @@ void sendByeMessage(){
   if(strcmp(completeReceivedMessage, STRING_BYE_RESPONSE_OK) != 0){
     free(completeReceivedMessage);
     printf("(CLIENT) Error: server reject bye message\n");
+    close(service.serverFD);
     exit(EXIT_FAILURE);
   } 
+  close(service.serverFD);
   free(completeReceivedMessage);
 }
 

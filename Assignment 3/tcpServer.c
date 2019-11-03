@@ -72,9 +72,9 @@ int main(int argc, char *argv[]){
 
     /* Check if number of params passed is correct */
     if (argc != 2) {
-            printf("\nErrore numero errato di parametri\n");
-            printf("\n%s <server port>\n", argv[0]);
-            exit(EXIT_FAILURE);
+        printf("\nErrore numero errato di parametri\n");
+        printf("\n%s <server port>\n", argv[0]);
+        exit(EXIT_FAILURE);
     }
     /* Open TCP server */
     serverFD = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -121,6 +121,7 @@ int main(int argc, char *argv[]){
                 byteRecv = recv(service.connectionFD, receivedData, MAX_BUF_SIZE, 0);
                 if (byteRecv < 0){
                     perror("recv");
+                    close(service.connectionFD);
                     exit(EXIT_FAILURE);
                 }
                 strcat(completeMessageReceived, receivedData);
@@ -130,6 +131,7 @@ int main(int argc, char *argv[]){
                     printf("(SERVER) Message received: %s", completeMessageReceived);
                     sleep(service.serverDelay > 0 ? service.serverDelay : 0);
                     if(manageMessage(completeMessageReceived)==FALSE) {
+                        close(service.connectionFD);
                         initilizeService();
                     }
                     free(completeMessageReceived);
@@ -189,6 +191,7 @@ BOOL manageProbeMessage(char * message){
 BOOL manageByeMessage(char * message){
     if(checkByeMessage(message)){
         sendMessage("200 OK - Closing");
+        close(service.connectionFD);
         initilizeService();
     }else{
         /* Don't know how to do when the message is wrong: close however. */
