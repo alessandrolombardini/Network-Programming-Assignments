@@ -108,8 +108,8 @@ void sendHelloMessage(){
   if(checkInputString(readData)){
     parseInputString(readData);
   } else{
-    perror("(CLIENT) Error: Hello message format isn't correct \n");
     close(service.serverFD);
+    perror("(CLIENT) Error: Hello message format isn't correct \n");
     exit(EXIT_FAILURE);
   }
   strcat(sendData, "h ");

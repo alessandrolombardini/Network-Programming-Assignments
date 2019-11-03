@@ -52,6 +52,7 @@ void initilizeService() {
     /* First state of machine - other informations are invalid in WAIT_CONNECTION */
     service.phaseNumber = WAIT_CONNECTION;
     service.probeSequenceNumberAwaited = 1;
+    service.serverDelay = 0;
 }
 
 int main(int argc, char *argv[]){
@@ -192,7 +193,8 @@ BOOL manageByeMessage(char * message){
         sendMessage("200 OK - Closing");
         close(service.connectionFD);
         initilizeService();
-    }else{
+        return TRUE;
+    } else{
         /* Don't know how to do when the message is wrong: close however. */
         return FALSE;
     }
