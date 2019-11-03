@@ -35,7 +35,7 @@ void initilizeService();                    /* Set the server on the intial stat
 
 /* Service structure definition goes here */
 typedef struct node {
-	char measureType[4];    /* Service requested - RTT or THROUGHPUT */
+	char measureType[6];    /* Service requested - RTT or THROUGHPUT */
 	int nProbes;      /* Number of probes to send */
 	int messageSize;  /* Size of payload to send in the probe message */
 	int serverDelay;  /* Delay of response to the probe message (in seconds) */
