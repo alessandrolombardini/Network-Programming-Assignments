@@ -11,10 +11,10 @@
 
 #define MAX_BUF_SIZE 32768          /* Maximum size of TCP messages */
 #define BACK_LOG 2                  /* Maximum queued requests */
-#define NO_CONNECTION_STATE 0       /* First state */
-#define READY_TO_REQUEST 1          /* Second state */
-#define ECHO_STATE 2                /* Third state */
-#define BYE_STATE 3                 /* Fourth state */
+#define WAIT_CONNECTION    0        /* First state */
+#define WAIT_HELLO_MESSAGE 1        /* Second state */
+#define WAIT_PROBE_MESSAGE 2        /* Third state */
+#define WAIT_BYE_MESSAGE   3        /* Fourth state */
 #define STRING_SPLITTER " "         /* String splitter of the hello message */
 #define BOOL int 
 #define TRUE 1
@@ -35,7 +35,6 @@ void initilizeService();                    /* Set the server on the intial stat
 
 /* Service structure definition goes here */
 typedef struct node {
-	char protocolPhase[2];  /* Actual protocol phase */ 
 	char measureType[4];    /* Service requested - RTT or THROUGHPUT */
 	int nProbes;      /* Number of probes to send */
 	int messageSize;  /* Size of payload to send in the probe message */
@@ -50,8 +49,8 @@ typedef struct node {
 serviceNode service;
 
 void initilizeService() {
-    /* First state of machine - other informations are invalid in NO_CONNECTION_STATE */
-    service.phaseNumber = NO_CONNECTION_STATE;
+    /* First state of machine - other informations are invalid in WAIT_CONNECTION */
+    service.phaseNumber = WAIT_CONNECTION;
     service.probeSequenceNumberAwaited = 1;
 }
 
@@ -108,9 +107,9 @@ int main(int argc, char *argv[]){
         }
         printf("Connessione eseguita (IP: %s | Porta: %d)\n",  inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
         /* Be ready to accept request of service */
-        service.phaseNumber = READY_TO_REQUEST;
+        service.phaseNumber = WAIT_HELLO_MESSAGE;
         service.connectionFD = acceptFD;
-        while(service.phaseNumber != NO_CONNECTION_STATE ){  /* While there is connection keep connection alive */
+        while(service.phaseNumber != WAIT_CONNECTION ){  /* While there is connection keep connection alive */
             completeMessageReceived = (char *)calloc(MAX_BUF_SIZE, sizeof(char));
             /** In this phase I need to check if the message just arrived is complete:
                 this becouse it's possible that it doesnt' arrive in just one message,
@@ -159,11 +158,11 @@ void sendMessage(char * message) {
 BOOL manageMessage(char mess[]){
     BOOL check = TRUE;
     /* Compare message with the message format awaited and return if it's valid or not */
-    if(service.phaseNumber == READY_TO_REQUEST){
-       return manageHelloMessage(mess);
-    } else if(service.phaseNumber == ECHO_STATE){
+    if(service.phaseNumber == WAIT_HELLO_MESSAGE){
+        return manageHelloMessage(mess);
+    } else if(service.phaseNumber == WAIT_PROBE_MESSAGE){
         return manageProbeMessage(mess);
-    } else if(service.phaseNumber == BYE_STATE) {
+    } else if(service.phaseNumber == WAIT_BYE_MESSAGE)   {
         return manageByeMessage(mess);
     }
     return check;
@@ -172,7 +171,7 @@ BOOL manageMessage(char mess[]){
 BOOL manageHelloMessage(char * message){
     if(checkHelloMessage(message)){
         sendMessage("200 OK - Ready");
-        service.phaseNumber = ECHO_STATE;
+        service.phaseNumber = WAIT_PROBE_MESSAGE;
         return TRUE;
     }else{
         sendMessage("404 ERROR - Invalid Hello message");
@@ -210,7 +209,6 @@ BOOL checkHelloMessage(char mess[]){
     if(token == NULL || strcmp(token, "h") != 0){
         return FALSE;
     }
-    strcpy(service.protocolPhase, token);
     /* Check measure type */
     token = strtok(NULL, STRING_SPLITTER);
     if(token == NULL || (strcmp(token, "rtt") != 0 && strcmp(token, "thput") != 0) ){
@@ -269,10 +267,10 @@ BOOL checkProbeMessage(char mess[]){
     }
     if(service.messageSize != numberOfBytes){
         return FALSE;
-    }
-    /* All is ok - set next phase */
+       }
+     /* All is ok - set next phase */
     if(service.probeSequenceNumberAwaited == service.nProbes){
-        service.phaseNumber = BYE_STATE;
+     service.phaseNumber = WAIT_BYE_MESSAGE;  
     }
     service.probeSequenceNumberAwaited++;
     return TRUE;
@@ -305,7 +303,6 @@ int getNumber(char * token){
 }
 
 void printService(){
-    printf("Protocol phase: %s\n",service.protocolPhase);
     printf("Measure type: %s\n",service.measureType);
     printf("Number of probes: %i\n",service.nProbes);
     printf("Message size: %i\n",service.messageSize);
