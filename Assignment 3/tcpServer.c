@@ -129,7 +129,7 @@ int main(int argc, char *argv[]){
                 /* Check if the message received at the moment is complete (has \n) */
                 if(completeMessageReceived[strlen(completeMessageReceived) - 1] == '\n') { 
                     printf("(SERVER) Message received: %s", completeMessageReceived);
-                    usleep(service.serverDelay > 0 ? service.serverDelay : 0);
+                    usleep(service.serverDelay > 0 ? service.serverDelay*1000 : 0);
                     if(manageMessage(completeMessageReceived)==FALSE) {
                         close(service.connectionFD);
                         initilizeService();
