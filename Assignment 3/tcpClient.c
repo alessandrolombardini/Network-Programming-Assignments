@@ -11,16 +11,17 @@
 #include <netinet/in.h>
 #include "myfunction.h"
 
-#define STRING_HELLO_RESPOSE_OK        "200 OK - Ready"                       /* Positive response awaited from server after send the hello message */
-#define STRING_HELLO_RESPONE_NOT_OK    "404 ERROR - Invalid Hello Message"    /* Negative response awaited from server after send the hello message */
-#define STRING_BYE_RESPONSE_OK         "200 OK - Closing"                     /* Positive response awaited from server after send the bye message */
-#define min(a,b) (((a) < (b)) ? (a) : (b))                        
+#define STRING_HELLO_RESPOSE_OK        "200 OK - Ready"                           /* Positive response awaited from server after send the hello message */
+#define STRING_HELLO_RESPONE_NOT_OK    "404 ERROR - Invalid Hello message"        /* Negative response awaited from server after send the hello message */
+#define STRING_BYE_RESPONSE_OK         "200 OK - Closing"                         /* Positive response awaited from server after send the bye message */
+#define STRING_PROBE_RESPONSE_NOT_OK   "404 ERROR - Invalid Measurement message"  /* Negative response awaited from server after send a probe message */
+#define max(a,b) (((a) > (b)) ? (a) : (b))                        
 #define MAX_BUFFER_SIZE 32768           /* Maximum size of TCP messages */
 #define INPUT_FILE_NAME "init.conf"     /* Name of the file where the hello message is conteined */
 #define PAYLOAD_CHARACTER 'a'           /* Character of payload of messages that has to be sent */
-#define HELLO_PHASE 1                   /* We have to send hello message and receive its response */
-#define PROBE_PHASE 2                   /* We have to send probe message and receive its response */
-#define BYE_PHASE 3                     /* We have to send bye message and receive its response */
+#define WAIT_HELLO_MESSAGE_RESPONSE  1  /* We have to send hello message and receive its response */
+#define WAIT_PROBE_MESSAGE_RESPONSE  2  /* We have to send probe message and receive its response */
+#define WAIT_BYE_MESSAGE_RESPONSE    3  /* We have to send bye message and receive its response */
 #define STRING_SPLITTER " "             /* String splitter of the hello message */
 #define BOOL int 
 #define TRUE 1
@@ -35,11 +36,11 @@ float evaluateRTT(float rttOfProbes[]); /* Bye a sequence of RTT, it extract an 
 BOOL isNumber(char * token);            /* Check if a string is a number */
 int getNumber(char * token);            /* Extract a number by a string (1 if it's not a number) */
 char * receiveMessage();                /* Allows to received the completed next message */ 
+BOOL readFile();                        /* Read init.conf, check if it's valid and load its values in the data structure */
 
 /* Service structure definition goes here */
 typedef struct node {
-	char protocolPhase[2];
-	char measureType[4];
+	char measureType[6];
 	int nProbes;
 	int messageSize;
 	int serverDelay;
@@ -64,6 +65,11 @@ int main(int argc, char *argv[]){
 		printf("\nErrore numero errato di parametri\n");
 		printf("\n%s <server IP (dotted notation)> <server port>\n", argv[0]);
 		exit(EXIT_FAILURE);
+  }
+  /* Read init.conf */
+  if(!readFile()){
+    perror("(CLIENT) Error: Hello message format isn't correct \n");
+    exit(EXIT_FAILURE);
   }
   /* Open connection with the tcp server */
   serverFD = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -90,18 +96,52 @@ int main(int argc, char *argv[]){
   return 0;
 }
 
+BOOL readFile(){
+  char readData[MAX_BUFFER_SIZE];
+  FILE * fileFD;
+
+  /* Read hello message by file */
+  fileFD = fopen(INPUT_FILE_NAME, "r");
+  if(fileFD == NULL){
+    perror("(CLIENT) Opening file error\n");
+    close(service.serverFD);
+    exit(EXIT_FAILURE);
+  }
+  fgets(readData, MAX_BUFFER_SIZE, fileFD);
+  readData[strcspn(readData, "\n")] = ' ';
+  fclose(fileFD);
+  /* Check hello message and, if it is valide, parse it in the data structure */
+  if(checkInputString(readData)){
+    parseInputString(readData);
+    return TRUE;
+  } 
+  return FALSE;
+}
+
+void sendHelloMessage(){
+  char sendData[MAX_BUFFER_SIZE];        
+
+  /* Send hello message to the server and check its response */
+  sprintf(sendData, "h %s %d %d %d\n", service.measureType, service.nProbes, service.messageSize, service.serverDelay);
+  send(service.serverFD, sendData, strlen(sendData), 0);
+  printf("(CLIENT) Message sent: %s", sendData);
+  char * completeReceivedMessage = receiveMessage();
+  printf("(CLIENT) Message received: %s\n\n", completeReceivedMessage);
+  if(strncmp(completeReceivedMessage, STRING_HELLO_RESPOSE_OK, strlen(completeReceivedMessage)) != 0){
+      free(completeReceivedMessage);
+      close(service.serverFD);
+      exit(EXIT_FAILURE);
+  }
+  free(completeReceivedMessage);
+}
+
 BOOL checkInputString(char mess[]){
   char * token;
   char message[strlen(mess)];
 
   strcpy(message, mess);
-  /* Check protocol phase character */
-  token = strtok(message, STRING_SPLITTER);
-  if(token == NULL || strcmp(token, "h") != 0){
-      return FALSE;
-  }
   /* Check measure type characters */
-  token = strtok(NULL, STRING_SPLITTER);
+  token = strtok(message, STRING_SPLITTER);
   if(token == NULL || (strcmp(token, "rtt") != 0 && strcmp(token, "thput") != 0) ){
       return FALSE;
   }
@@ -128,11 +168,8 @@ void parseInputString(char mess[]){
   char message[strlen(mess)];
 
   strcpy(message, mess);
-  /* Extract protocol phase character */
-  token = strtok(message, STRING_SPLITTER);
-  strcpy(service.protocolPhase, token);
   /* Extract measure type characters */
-  token = strtok(NULL, STRING_SPLITTER);
+  token = strtok(message, STRING_SPLITTER);
   strcpy(service.measureType, token);
   /* Extract number of probes characters */
   token = strtok(NULL, STRING_SPLITTER);
@@ -145,43 +182,6 @@ void parseInputString(char mess[]){
   service.serverDelay = getNumber(token);
   service.phaseNumber = 1;
 } 
-
-void sendHelloMessage(){
-  char sendData[MAX_BUFFER_SIZE];        
-  FILE * fileFD;
-
-  /* Read hello message by file */
-  fileFD = fopen(INPUT_FILE_NAME, "r");
-  if(fileFD == NULL){
-    perror("(CLIENT) Opening file error\n");
-    close(service.serverFD);
-    exit(EXIT_FAILURE);
-  }
-  fgets(sendData, MAX_BUFFER_SIZE, fileFD);
-  sendData[strcspn(sendData, "\n")] = ' ';
-  fclose(fileFD);
-  /* Check hello message and, if it is valide, parse it in the data structure */
-  if(checkInputString(sendData)){
-    parseInputString(sendData);
-  } else{
-    perror("(CLIENT) Error: Hello message format isn't correct \n");
-    close(service.serverFD);
-    exit(EXIT_FAILURE);
-  }
-  strcat(sendData, "\n");
-  /* Send hello message to the server and check its response */
-  send(service.serverFD, sendData, strlen(sendData), 0);
-  printf("(CLIENT) Message sent: %s", sendData);
-  char * completeReceivedMessage = receiveMessage();
-  printf("(CLIENT) Message received: %s\n", completeReceivedMessage);
-  if(strncmp(completeReceivedMessage, STRING_HELLO_RESPOSE_OK, strlen(completeReceivedMessage)) != 0){
-      free(completeReceivedMessage);
-      printf("(CLIENT) Error: server reject hello message\n");
-      close(service.serverFD);
-      exit(EXIT_FAILURE);
-  }
-  free(completeReceivedMessage);
-}
 
 void sendProbeMessages(){
   char payload[service.messageSize + 1];    /* Contains the payload */
@@ -211,14 +211,14 @@ void sendProbeMessages(){
     printf("(CLIENT) Message sent: %s", finalMessageToSend);
     /* Receive probe message response */
     char * completeMessageReceived = receiveMessage();
+    printf("(CLIENT) Message received: %s", completeMessageReceived);
     clock_gettime(CLOCK_REALTIME, &end);
     if(strcmp(finalMessageToSend, completeMessageReceived) != 0){
+      printf("\n");
       free(completeMessageReceived);
-      printf("(CLIENT) Error: server reject probe message\n");
       close(service.serverFD);
       exit(EXIT_FAILURE);
     }
-    printf("(CLIENT) Message received: %s", completeMessageReceived); 
     free(completeMessageReceived);
     /* Calculate RTT of probe message */
     rttOfProbes[i] = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;      /* RTT in microseconds */
@@ -228,7 +228,7 @@ void sendProbeMessages(){
   if(strcmp(service.measureType, "rtt") == 0){
     printf("Average RTT: %f milliseconds\n\n", evaluateRTT(rttOfProbes)/1000);
   } else{
-    printf("Byte nr: %d\n", numberOfBits/8);
+    printf("Number of bytes: %d\n", numberOfBits/8);
     printf("Average RTT: %f milliseconds\n", (evaluateRTT(rttOfProbes)/1000));
     printf("Throughtput: %f kilobits/seconds\n\n", (((float)numberOfBits)/1000) /(evaluateRTT(rttOfProbes)/1000000));
   }
@@ -263,20 +263,23 @@ char * receiveMessage(){
     strcat(completeMessageReceived, receivedData);
     free(receivedData);
     /* Check if the message received at the moment is complete (has \n) */
-    if(service.phaseNumber == HELLO_PHASE) {
-      int messLengh = strlen(completeMessageReceived);
+    int messLengh = strlen(completeMessageReceived);
+    if(service.phaseNumber == WAIT_HELLO_MESSAGE_RESPONSE) {
       int respOkLen = strlen(STRING_HELLO_RESPOSE_OK);
       int respNotOkLen = strlen(STRING_HELLO_RESPONE_NOT_OK);
-      if(strncmp(STRING_HELLO_RESPOSE_OK, completeMessageReceived, min(respOkLen, messLengh)) == 0 || 
-         strncmp(STRING_HELLO_RESPONE_NOT_OK, completeMessageReceived, min(respNotOkLen, messLengh)) == 0){
+      if(strncmp(STRING_HELLO_RESPOSE_OK, completeMessageReceived, max(respOkLen, messLengh)) == 0 || 
+         strncmp(STRING_HELLO_RESPONE_NOT_OK, completeMessageReceived, max(respNotOkLen, messLengh)) == 0){
         messageIsComplete=TRUE;
       }
-    } else if(service.phaseNumber == PROBE_PHASE && completeMessageReceived[strlen(completeMessageReceived) - 1] == '\n'){
-      messageIsComplete=TRUE;
-    } else if(service.phaseNumber == BYE_PHASE) {
-      int messLengh = strlen(completeMessageReceived);
+    } else if(service.phaseNumber == WAIT_PROBE_MESSAGE_RESPONSE){
+      int respOkLen = strlen(STRING_PROBE_RESPONSE_NOT_OK);
+      if(completeMessageReceived[strlen(completeMessageReceived) - 1] == '\n' ||
+         strncmp(STRING_PROBE_RESPONSE_NOT_OK, completeMessageReceived, max(respOkLen, messLengh)) == 0){
+        messageIsComplete=TRUE;
+      }
+    } else if(service.phaseNumber == WAIT_BYE_MESSAGE_RESPONSE)   {
       int respOkLen = strlen(STRING_BYE_RESPONSE_OK);
-      if(strncmp(STRING_BYE_RESPONSE_OK, completeMessageReceived, min(respOkLen, messLengh)) == 0){
+      if(strncmp(STRING_BYE_RESPONSE_OK, completeMessageReceived, max(respOkLen, messLengh)) == 0){
         messageIsComplete=TRUE;
       }
     }
