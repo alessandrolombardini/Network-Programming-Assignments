@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 #include "myfunction.h"
 #include <sys/time.h>
+#include <unistd.h>
 
 #define MAX_BUF_SIZE 1024 // Maximum size of single messages
 #define FILE_NAME "init.conf" //file containing main messages information
@@ -85,6 +86,7 @@ int main(int argc, char *argv[]){
     struct timeval start, end;          // Variables for timer
     double rtt[MAX_BUF_SIZE];           // Probe's rtt array
     double sum_rtt = 0;                 // Sum of all probe's rtt
+    double average_rtt;                 // Average RTT value
 
     if (argc != 3) {
         printf("\nError tcpClient: wrong number of parameters in function main().\n\n");
@@ -124,8 +126,9 @@ int main(int argc, char *argv[]){
     
     byteRecv = recv(sfd, receivedData, MAX_BUF_SIZE, 0); // I don't need multiple reads in this phase because I only receive short answers from server
     if(byteRecv == -1){
-        perror("\nError tcpClient: an error occurred while receiving data from the socket.\n\n");
+        perror("\nError tcpClient: an error occurred while receiving data from the socket. Closing.\n\n");
         fflush(stdout);
+        close(sfd);
         exit(EXIT_FAILURE);
     }
 
@@ -136,9 +139,9 @@ int main(int argc, char *argv[]){
         printf("\ntcpClient received ok, switch phase into measurement.\n\n");
         fflush(stdout);
     } else { // Received FAIL
-        //Non mi ricordo cosa devo fare qui--------------- forse chiudere forse boh
-        printf("\ntcpClient: server rejected my hello message.\n\n");
-        return 0;
+        printf("\ntcpClient: server rejected my hello message. Closing.\n\n");
+        close(sfd);
+        exit(EXIT_FAILURE);
     }
     free(receivedData);
     free(message);
@@ -146,14 +149,16 @@ int main(int argc, char *argv[]){
     /* phase m ---------------------------------------------------------------------------------------------------------- */
     payload = (char *)calloc(service.msg_size, sizeof(char)); // init of payload
     if (payload == NULL){
-        printf("\ntcpClient: an error occurred while calling calloc\n\n");
+        printf("\ntcpClient: an error occurred while calling calloc. Closing.\n\n");
         fflush(stdout);
+        close(sfd);
         exit(EXIT_FAILURE);
     }
     message = (char *)calloc(service.msg_size + 10, sizeof(char)); // init of message bigger enough to  contain message payload
     if (message == NULL){
-        printf("\ntcpClient: an error occurred while calling calloc\n\n");
+        printf("\ntcpClient: an error occurred while calling calloc. Closing.\n\n");
         fflush(stdout);
+        close(sfd);
         exit(EXIT_FAILURE);
     }
 
@@ -165,9 +170,10 @@ int main(int argc, char *argv[]){
         memset(message,0,strlen(message)); //flushing message content
         sprintf(message, "m %d %s\n", (i+1), payload);
 
+        send(sfd, message, strlen(message), 0);
+
         gettimeofday(&start, NULL);
 
-        send(sfd, message, strlen(message), 0);
         printf("tcpClient sent message to server: %s", message);
         fflush(stdout);
         
@@ -175,9 +181,13 @@ int main(int argc, char *argv[]){
         memset(message,0,strlen(message)); //flushing message content
         
         byteRecv = recv(sfd, message, service.msg_size + 10, 0);
+
+        gettimeofday(&end,NULL);
+
         if(byteRecv == -1){
-            perror("\nError tcpServer: an error occurred while receiving data from the socket.\n");
+            perror("\nError tcpServer: an error occurred while receiving data from the socket. Closing.\n");
             fflush(stdout);
+            close(sfd);
             exit(EXIT_FAILURE);
         }
         
@@ -185,11 +195,10 @@ int main(int argc, char *argv[]){
         fflush(stdout);
         if (strncmp(message, "400", 3) == 0 || strncmp(message, "m", 1) != 0){
             printf("\ntcpClient: server rejected my probe message. Closing.\n\n");
+            close(sfd);
             exit(EXIT_FAILURE);
         }
 
-        gettimeofday(&end,NULL);
-        
         rtt[i] = (end.tv_sec + (end.tv_usec/1000000.0))-(start.tv_sec + (start.tv_usec/1000000.0)); //Rtt of single probes
         //printf("\nRTT of probe_seq_number %d is %lf\n", i+1, rtt[i]);
     }
@@ -201,8 +210,9 @@ int main(int argc, char *argv[]){
         printf("Probe %d -> rtt: %lf ms\n",i+1, rtt[i]);
         sum_rtt += rtt[i];
     }
-    printf("\nAverage rtt is: %lf ms\n", sum_rtt/service.n_probes);
-    printf("Thput is: %lf kbps", (service.msg_size / 1000)/sum_rtt);
+    average_rtt  =sum_rtt/service.n_probes;
+    printf("\nAverage rtt is: %lf ms\n", average_rtt);
+    printf("Thput is: %lf kbps", (service.msg_size / 1000)/(average_rtt*1000));
 
     service.protocol_phase = 'b';
     printf("\ntcpClient: measurement phase went ok, switch phase into bye.\n");
@@ -217,8 +227,9 @@ int main(int argc, char *argv[]){
     memset(receivedData,0,strlen(receivedData)); //flushing receivedData content
     byteRecv = recv(sfd, receivedData, MAX_BUF_SIZE, 0); // I don't need multiple reads in this phase because I only receive short answers from server
     if(byteRecv == -1){
-        perror("\nError tcpClient: an error occurred while receiving data from the socket.\n\n");
+        perror("\nError tcpClient: an error occurred while receiving data from the socket. Closing\n\n");
         fflush(stdout);
+        close(sfd);
         exit(EXIT_FAILURE);
     }
     printf("\ntcpClient received message from server: %s", receivedData);
@@ -230,6 +241,7 @@ int main(int argc, char *argv[]){
     } else {
         printf("\ntcpClient: an error occurred into bye phase. Closing\n");
     }
+    close(sfd);
     free(message);
     free(receivedData);
 
