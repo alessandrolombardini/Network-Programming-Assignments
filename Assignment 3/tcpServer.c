@@ -9,7 +9,7 @@
 #include <arpa/inet.h>
 #include "myfunction.h"
 
-#define BUF_SIZE 1024               /* Maximum size of TCP messages */
+#define BUF_SIZE 32768              /* Maximum size of TCP messages */
 #define BACK_LOG 2                  /* Maximum queued requests */
 #define WAIT_CONNECTION    0        /* First state */
 #define WAIT_HELLO_MESSAGE 1        /* Second state */
@@ -61,12 +61,10 @@ int main(int argc, char *argv[]){
     int acceptFD;                           /* Accept result */
     int bindResult;                         /* Bind result */
     int listenResult;                       /* Listen result */
-    int totalByteReceived;                  /* All byte recevied of one message until now */
-    int bufferMultiplier;                   /* Buffer size multiplier */
     ssize_t byteRecv;                       /* Number of bytes received */
     ssize_t byteSent;                       /* Number of bytes to be sent */
     socklen_t cli_size;
-    char sendData [BUF_SIZE];           /*  Buffer of data to be sent */
+    char sendData [BUF_SIZE];               /*  Buffer of data to be sent */
     char * receivedData;                    /* Buffer of received data */
     char * completeMessageReceived;         /* Complete message received: this is the sum of all pieces that can arrive*/ 
     BOOL messageIsComplete = FALSE;         /* Check if the message is all arrived or not */
@@ -112,9 +110,7 @@ int main(int argc, char *argv[]){
         service.phaseNumber = WAIT_HELLO_MESSAGE;
         service.connectionFD = acceptFD;
         while(service.phaseNumber != WAIT_CONNECTION ){  /* While there is connection keep connection alive */
-            totalByteReceived = 0;
-            int bufferMultiplier = 1;
-            completeMessageReceived = (char *)calloc(BUF_SIZE * bufferMultiplier, sizeof(char));   
+            completeMessageReceived = (char *)calloc(BUF_SIZE, sizeof(char));   
             /** In this phase I need to check if the message just arrived is complete:
                 this becouse it's possible that it doesnt' arrive in just one message,
                 but in multiple message **/
@@ -126,11 +122,6 @@ int main(int argc, char *argv[]){
                     printf("(SERVER) Error: recive error");
                     close(service.connectionFD);
                     exit(EXIT_FAILURE);
-                }
-                totalByteReceived += byteRecv;
-                if(totalByteReceived >= (bufferMultiplier * BUF_SIZE)-1){
-                    bufferMultiplier += 1;
-                    completeMessageReceived = (char *) realloc(completeMessageReceived, BUF_SIZE * bufferMultiplier * sizeof(char));
                 }
                 strcat(completeMessageReceived, receivedData);
                 free(receivedData);
@@ -157,7 +148,7 @@ int main(int argc, char *argv[]){
 void sendMessage(char * message) {
     send(service.connectionFD, message, strlen(message), 0);
     /* If the message has alredy the character \n in the end, the printf doesn't add one */
-    printf(message[strlen(message)-1]=='\n' ? "(SERVER) Message sent: %s\n" : 
+    printf(message[strlen(message)-1]=='\n' ? "(SERVER) Message sent: %s" : 
                                               "(SERVER) Message sent: %s\n", message);
 }
 

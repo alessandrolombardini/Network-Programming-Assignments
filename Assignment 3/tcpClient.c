@@ -17,7 +17,7 @@
 #define STRING_BYE_RESPONSE_NOT_OK     "404 ERROR - Invalid Bye message"          /* Negative response awaited from server after send the bye message */ 
 #define STRING_PROBE_RESPONSE_NOT_OK   "404 ERROR - Invalid Measurement message"  /* Negative response awaited from server after send a probe message */
 #define max(a,b) (((a) > (b)) ? (a) : (b))                        
-#define BUF_SIZE 1024                         /* Maximum size of TCP messages */
+#define BUF_SIZE 32768                        /* Maximum size of TCP messages */
 #define INPUT_FILE_NAME "init.conf"           /* Name of the file where the hello message is conteined */
 #define PAYLOAD_CHARACTER 'x'                 /* Character of payload of messages that has to be sent */
 #define WAIT_HELLO_MESSAGE_RESPONSE  1        /* We have to send hello message and receive its response */
@@ -266,8 +266,6 @@ char * receiveMessage(){
   int respOkLen = 0;
   int respNotOkLen = 0;
   int byteRecv = 0;
-  int totalByteReceived = 0;                  /* All byte recevied of one message until now */
-  int bufferMultiplier = 1;                   /* Buffer size multiplier */
 
   completeMessageReceived = (char *)calloc(BUF_SIZE, sizeof(char));
   for(;messageIsComplete==FALSE;){
@@ -279,11 +277,6 @@ char * receiveMessage(){
         free(completeMessageReceived);
         close(service.serverFD);
         exit(EXIT_FAILURE);
-    }
-    totalByteReceived += byteRecv;
-    if(totalByteReceived >= bufferMultiplier * BUF_SIZE - 1){
-        bufferMultiplier += 1;
-        completeMessageReceived = (char *) realloc(completeMessageReceived, BUF_SIZE * bufferMultiplier * sizeof(char));
     }
     /** In this phase I need to check if the message just arrived is complete:
         this becouse it's possible that it doesnt' arrive in just one message,
@@ -321,7 +314,6 @@ float evaluateRTT(float rttOfProbes[]){
   float total = 0;
 
   for(int i = 0; i < service.nProbes; i++){
-    printf("RTT %i: %f\n", i, rttOfProbes[i]/1000);
     total += rttOfProbes[i];
   }
   return total/service.nProbes;
