@@ -192,8 +192,6 @@ BOOL manageByeMessage(char * message){
         return TRUE;
     } else{
         sendMessage("404 ERROR - Invalid Bye message");
-        close(service.connectionFD);
-        initilizeService();
         return FALSE;
     }
 }
