@@ -9,7 +9,7 @@
 #include <arpa/inet.h>
 #include "myfunction.h"
 
-#define BUF_SIZE 32768              /* Maximum size of TCP messages */
+#define BUF_SIZE 1024               /* Maximum size of TCP messages */
 #define BACK_LOG 2                  /* Maximum queued requests */
 #define WAIT_CONNECTION    0        /* First state */
 #define WAIT_HELLO_MESSAGE 1        /* Second state */
@@ -63,6 +63,8 @@ int main(int argc, char *argv[]){
     int listenResult;                       /* Listen result */
     ssize_t byteRecv;                       /* Number of bytes received */
     ssize_t byteSent;                       /* Number of bytes to be sent */
+    int totalByteReceived;
+    int bufferMultiplier;
     socklen_t cli_size;
     char sendData [BUF_SIZE];               /*  Buffer of data to be sent */
     char * receivedData;                    /* Buffer of received data */
@@ -110,7 +112,9 @@ int main(int argc, char *argv[]){
         service.phaseNumber = WAIT_HELLO_MESSAGE;
         service.connectionFD = acceptFD;
         while(service.phaseNumber != WAIT_CONNECTION ){  /* While there is connection keep connection alive */
-            completeMessageReceived = (char *)calloc(BUF_SIZE, sizeof(char));   
+            totalByteReceived = 0;
+            bufferMultiplier = 1;
+            completeMessageReceived = (char *)calloc(BUF_SIZE * bufferMultiplier, sizeof(char));   
             /** In this phase I need to check if the message just arrived is complete:
                 this becouse it's possible that it doesnt' arrive in just one message,
                 but in multiple message **/
@@ -122,6 +126,11 @@ int main(int argc, char *argv[]){
                     printf("(SERVER) Error: recive error");
                     close(service.connectionFD);
                     exit(EXIT_FAILURE);
+                }
+                totalByteReceived += byteRecv;
+                if(totalByteReceived > BUF_SIZE * bufferMultiplier -1){
+                    bufferMultiplier += 1;
+                    completeMessageReceived = (char *) realloc(completeMessageReceived, BUF_SIZE * bufferMultiplier * sizeof(char));
                 }
                 strcat(completeMessageReceived, receivedData);
                 free(receivedData);
@@ -140,7 +149,7 @@ int main(int argc, char *argv[]){
             messageIsComplete=FALSE;
         }
         /* Close connection */
-        printf("(SERVER) Connection close.\n");
+        printf("\n(SERVER) Connection close.\n");
         close(acceptFD);
     }
 }
