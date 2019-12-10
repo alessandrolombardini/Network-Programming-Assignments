@@ -63,8 +63,8 @@ int main(int argc, char *argv[]){
     int listenResult;                       /* Listen result */
     ssize_t byteRecv;                       /* Number of bytes received */
     ssize_t byteSent;                       /* Number of bytes to be sent */
-    int totalByteReceived;
-    int bufferMultiplier;
+    int totalByteReceived = 0;              /* Total bytes read of one message */
+    int bufferMultiplier = 1;               /* Multiplier of message buffer: it has to be increased if the space is not enought */  
     socklen_t cli_size;
     char sendData [BUF_SIZE];               /*  Buffer of data to be sent */
     char * receivedData;                    /* Buffer of received data */
@@ -124,9 +124,12 @@ int main(int argc, char *argv[]){
                 byteRecv = recv(service.connectionFD, receivedData, BUF_SIZE, 0);
                 if (byteRecv < 0){
                     printf("(SERVER) Error: recive error");
+                    free(completeMessageReceived);
+                    free(receivedData);
                     close(service.connectionFD);
                     exit(EXIT_FAILURE);
                 }
+                /* If the initial buffer is not enough big to containt all message, it is reallocated */
                 totalByteReceived += byteRecv;
                 if(totalByteReceived > BUF_SIZE * bufferMultiplier -1){
                     bufferMultiplier += 1;
@@ -138,7 +141,8 @@ int main(int argc, char *argv[]){
                 if(completeMessageReceived[strlen(completeMessageReceived) - 1] == '\n') { 
                     printf("(SERVER) Message received: %s", completeMessageReceived);
                     usleep(service.serverDelay > 0 ? service.serverDelay*1000 : 0); /* Sleep in microseconds */
-                    if(manageMessage(completeMessageReceived)==FALSE) {
+                    if(manageMessage(completeMessageReceived) == FALSE) {
+                        free(completeMessageReceived);
                         close(service.connectionFD);
                         initilizeService();
                     }
@@ -176,11 +180,11 @@ BOOL manageMessage(char mess[]){
 
 BOOL manageHelloMessage(char * message){
     if(checkHelloMessage(message)){
-        sendMessage("200 OK - Ready");
+        sendMessage("200 OK - Ready\n");
         service.phaseNumber = WAIT_PROBE_MESSAGE;
         return TRUE;
     }else{
-        sendMessage("404 ERROR - Invalid Hello message");
+        sendMessage("404 ERROR - Invalid Hello message\n");
         return FALSE;
     }
 }
@@ -189,18 +193,18 @@ BOOL manageProbeMessage(char * message){
         sendMessage(message);
         return TRUE;
     } else {
-        sendMessage("404 ERROR - Invalid Measurement message");
+        sendMessage("404 ERROR - Invalid Measurement message\n");
         return FALSE;
     }
 }
 BOOL manageByeMessage(char * message){
     if(checkByeMessage(message)){
-        sendMessage("200 OK - Closing");
+        sendMessage("200 OK - Closing\n");
         close(service.connectionFD);
         initilizeService();
         return TRUE;
     } else{
-        sendMessage("404 ERROR - Invalid Bye message");
+        sendMessage("404 ERROR - Invalid Bye message\n");
         return FALSE;
     }
 }
