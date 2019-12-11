@@ -158,7 +158,6 @@ int main(int argc, char *argv[]){
                     printf("(SERVER) Message received: %s", completeMessageReceived);
                     usleep(service.serverDelay > 0 ? service.serverDelay*1000 : 0); /* Sleep in microseconds */
                     if(manageMessage(completeMessageReceived) == FALSE) {
-                        free(completeMessageReceived);
                         close(service.connectionFD);
                         initilizeService();
                     }
