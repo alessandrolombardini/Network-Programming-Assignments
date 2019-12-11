@@ -103,6 +103,7 @@ int main(int argc, char *argv[]){
 BOOL readFile(){
   FILE * fileFD;
   char readData[BUF_SIZE];
+  char * res;
 
   /* Read hello message by file */
   fileFD = fopen(INPUT_FILE_NAME, "r");
@@ -111,7 +112,12 @@ BOOL readFile(){
     close(service.serverFD);
     exit(EXIT_FAILURE);
   }
-  fgets(readData, BUF_SIZE, fileFD);
+  res = fgets(readData, BUF_SIZE, fileFD);
+  if (res == NULL){
+    printf("(CLIENT) Error: reading file\n");
+    close(service.serverFD);
+    exit(EXIT_FAILURE);
+  }
   fclose(fileFD);
   /* Check hello message and, if it is valide, parse it in the data structure */
   if(checkInputString(readData)){
@@ -203,6 +209,11 @@ void sendProbeMessages(){
   for(i = 0; i < service.nProbes; i++){
     /* Create probe message */
     char * finalMessageToSend = (char *)calloc(service.messageSize + MAX_BYTE_OF_HEADER, sizeof(char)); 
+    if(finalMessageToSend==NULL){
+      printf("(CLIENT) Error: an error occurred while calling calloc.\n");
+      close(service.serverFD);
+      exit(EXIT_FAILURE);
+    }
     sprintf(finalMessageToSend, "%c ", 'm');
     char sequenceNumber[BUF_SIZE];
     sprintf(sequenceNumber, "%d ", i+1);
@@ -284,8 +295,19 @@ char * receiveMessage(){
   int bufferMultiplier = 1;         /* Multiplier of message buffer: it has to be increased if the space is not enought */
 
   completeMessageReceived = (char *)calloc(BUF_SIZE*bufferMultiplier, sizeof(char));
+  if(completeMessageReceived==NULL){
+    printf("(CLIENT) Error: an error occurred while calling calloc.\n");
+    close(service.serverFD);
+    exit(EXIT_FAILURE);
+  }
   for(;messageIsComplete==FALSE;){
     char * receivedData = (char *)calloc(BUF_SIZE, sizeof(char));   /* Part of all message that has been read */
+    if(receivedData==NULL){
+      printf("(CLIENT) Error: an error occurred while calling calloc.\n");
+      free(completeMessageReceived);
+      close(service.serverFD);
+      exit(EXIT_FAILURE);
+    }
     byteRecv =  recv(service.serverFD, receivedData, BUF_SIZE, 0);
     if (byteRecv < 0){
         printf("(CLIENT) Error: recive error");
@@ -308,28 +330,6 @@ char * receiveMessage(){
     if(completeMessageReceived[strlen(completeMessageReceived) - 1] == '\n'){
       messageIsComplete=TRUE;
     }
-    // int messLengh = strlen(completeMessageReceived);
-    // if(service.phaseNumber == WAIT_HELLO_MESSAGE_RESPONSE) {
-    //   respOkLen = strlen(STRING_HELLO_RESPOSE_OK);
-    //   respNotOkLen = strlen(STRING_HELLO_RESPONE_NOT_OK);
-    //   if(strncmp(STRING_HELLO_RESPOSE_OK, completeMessageReceived, max(respOkLen, messLengh)) == 0 || 
-    //      strncmp(STRING_HELLO_RESPONE_NOT_OK, completeMessageReceived, max(respNotOkLen, messLengh)) == 0){
-    //     messageIsComplete=TRUE;
-    //   }
-    // } else if(service.phaseNumber == WAIT_PROBE_MESSAGE_RESPONSE){
-    //   respOkLen = strlen(STRING_PROBE_RESPONSE_NOT_OK);
-    //   if(completeMessageReceived[strlen(completeMessageReceived) - 1] == '\n' ||
-    //      strncmp(STRING_PROBE_RESPONSE_NOT_OK, completeMessageReceived, max(respOkLen, messLengh)) == 0){
-    //     messageIsComplete=TRUE;
-    //   }
-    // } else if(service.phaseNumber == WAIT_BYE_MESSAGE_RESPONSE)   {
-    //   respOkLen = strlen(STRING_BYE_RESPONSE_OK);
-    //   respNotOkLen = strlen(STRING_BYE_RESPONSE_NOT_OK);
-    //   if(strncmp(STRING_BYE_RESPONSE_OK, completeMessageReceived, max(respOkLen, messLengh)) == 0 || 
-    //      strncmp(STRING_BYE_RESPONSE_NOT_OK, completeMessageReceived, max(respNotOkLen, messLengh)) == 0){
-    //     messageIsComplete=TRUE;
-    //   }
-    // }
   }
   return completeMessageReceived;
 }

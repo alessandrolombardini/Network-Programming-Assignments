@@ -62,7 +62,6 @@ int main(int argc, char *argv[]){
     int bindResult;                         /* Bind result */
     int listenResult;                       /* Listen result */
     ssize_t byteRecv;                       /* Number of bytes received */
-    ssize_t byteSent;                       /* Number of bytes to be sent */
     int totalByteReceived = 0;              /* Total bytes read of one message */
     int bufferMultiplier = 1;               /* Multiplier of message buffer: it has to be increased if the space is not enought */  
     socklen_t cli_size;
@@ -114,13 +113,24 @@ int main(int argc, char *argv[]){
         while(service.phaseNumber != WAIT_CONNECTION ){  /* While there is connection keep connection alive */
             totalByteReceived = 0;
             bufferMultiplier = 1;
-            completeMessageReceived = (char *)calloc(BUF_SIZE * bufferMultiplier, sizeof(char));   
+            completeMessageReceived = (char *)calloc(BUF_SIZE * bufferMultiplier, sizeof(char));  
+            if(completeMessageReceived==NULL){
+                printf("(SERVER) Error: an error occurred while calling calloc.\n");
+                close(service.connectionFD);
+                exit(EXIT_FAILURE);
+            } 
             /** In this phase I need to check if the message just arrived is complete:
                 this becouse it's possible that it doesnt' arrive in just one message,
                 but in multiple message **/
             for(;messageIsComplete==FALSE;){
                 /* Receive one piece of the message */
                 receivedData = (char *)calloc(BUF_SIZE, sizeof(char));  
+                if(receivedData==NULL){
+                    printf("(SERVER) Error: an error occurred while calling calloc.\n");
+                    free(completeMessageReceived);
+                    close(service.connectionFD);
+                    exit(EXIT_FAILURE);
+                }
                 byteRecv = recv(service.connectionFD, receivedData, BUF_SIZE, 0);
                 if (byteRecv < 0){
                     printf("(SERVER) Error: recive error");
@@ -134,6 +144,12 @@ int main(int argc, char *argv[]){
                 if(totalByteReceived > BUF_SIZE * bufferMultiplier -1){
                     bufferMultiplier += 1;
                     completeMessageReceived = (char *) realloc(completeMessageReceived, BUF_SIZE * bufferMultiplier * sizeof(char));
+                    if(receivedData==NULL){
+                        printf("(SERVER) Error: an error occurred while calling recalloc.\n");
+                        free(receivedData);
+                        close(service.connectionFD);
+                        exit(EXIT_FAILURE);
+                    }
                 }
                 strcat(completeMessageReceived, receivedData);
                 free(receivedData);
