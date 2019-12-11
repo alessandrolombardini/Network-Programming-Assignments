@@ -283,7 +283,7 @@ int main(int argc, char *argv[]){
                         close(connection_sfd);
                         break;
                     } else {
-                        //Server received bye message but probes_counter isn't the same as declared into hello message.
+                        // Server received bye message but probes_counter isn't the same as declared into hello message.
                         printf("tcpServer: received bye message but probes weren't the right number. Closing.\n");
                         fflush(stdout);
                         close(connection_sfd);
