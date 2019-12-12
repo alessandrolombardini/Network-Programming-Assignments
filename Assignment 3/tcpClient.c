@@ -47,9 +47,9 @@ typedef struct node {
 	int messageSize;        /* Size of probe message's payload */
 	int serverDelay;        /* Delay of server probe message echo (in milliseconds) */
   int serverFD;           /* File descriptor of socket */
-  int phaseNumber;        /* 1: Hello message
-                             2: Probe message
-                             3: Bye message */
+  int phaseNumber;        /* 1: Hello phase
+                             2: Probe phase
+                             3: Bye phase */
 } serviceNode;
 serviceNode service;
 
