@@ -90,6 +90,7 @@ int main(int argc, char *argv[]){
         printf("(SERVER) Error: bind error"); 
         exit(EXIT_FAILURE);
     }
+    cli_size = sizeof(client_addr);
     listenResult = listen(serverFD, BACK_LOG);
     if (listenResult < 0){
         printf("(SERVER) Error: listen error"); 
@@ -155,12 +156,12 @@ int main(int argc, char *argv[]){
                 free(receivedData);
                 /* Check if the message received at the moment is complete (has \n) */
                 if(completeMessageReceived[strlen(completeMessageReceived) - 1] == '\n') { 
-                    printf("(SERVER) Message received: %s", completeMessageReceived);
                     usleep(service.serverDelay > 0 ? service.serverDelay*1000 : 0); /* Sleep in microseconds */
                     if(manageMessage(completeMessageReceived) == FALSE) {
                         close(service.connectionFD);
                         initilizeService();
                     }
+                    printf("(SERVER) Message received: %s", completeMessageReceived);
                     free(completeMessageReceived);
                     messageIsComplete=TRUE;
                 }

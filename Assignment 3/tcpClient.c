@@ -221,10 +221,10 @@ void sendProbeMessages(){
     strcat(finalMessageToSend, payload);
     strcat(finalMessageToSend, "\n");
     numberOfBits = strlen(finalMessageToSend) * 8;     /* Bytes of message * 8 = bits of message */
+    printf("(CLIENT) Message sent: %s", finalMessageToSend);
     /* Send probe message and check its response */
     send(service.serverFD, finalMessageToSend, strlen(finalMessageToSend), 0);
     clock_gettime(CLOCK_REALTIME, &start);
-    printf("(CLIENT) Message sent: %s", finalMessageToSend);
     /* Receive probe message response */
     char * completeMessageReceived = receiveMessage();
     clock_gettime(CLOCK_REALTIME, &end);
@@ -258,11 +258,11 @@ void sendProbeMessages(){
           (((float)numberOfBits)/1000) / (evaluateRTT(rttOfProbes)/1000000));
   }
 
-  printf("List of RTT:\n");
-  for(int i = 0; i < service.nProbes; i++){
-    printf("RTT of message %i: %f\n", i, rttOfProbes[i]/1000);
-  }
-  puts("\n");
+  // printf("List of RTT:\n");
+  // for(int i = 0; i < service.nProbes; i++){
+  //   printf("RTT of message %i: %f\n", i, rttOfProbes[i]/1000);
+  // }
+  // puts("\n");
 }
 
 void sendByeMessage(){
