@@ -30,7 +30,7 @@ BOOL manageByeMessage(char * message);      /* Manage the response to the bye me
 BOOL isNumber(char * token);                /* Check if a string is a number */
 int getNumber(char * token);                /* Get a number by a string */
 void sendMessage(char * message);           /* Send the message passed to the server */
-void initilizeService();                    /* Set the server on the intial state */
+void initializeService();                    /* Set the server on the intial state */
 
 /* Service structure definition */
 typedef struct node {
@@ -47,7 +47,7 @@ typedef struct node {
 } serviceNode;
 serviceNode service;
 
-void initilizeService() {
+void initializeService() {
     /* First state of machine - other informations are invalid in WAIT_CONNECTION */
     service.phaseNumber = WAIT_CONNECTION;
     service.probeSequenceNumberAwaited = 1;
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]){
         exit(EXIT_FAILURE);
     }
     /* Set the first state of the server */
-    initilizeService();
+    initializeService();
     /* Start server */
     while(TRUE){
         /* Wait for incoming requests by clients */
@@ -159,9 +159,8 @@ int main(int argc, char *argv[]){
                     usleep(service.serverDelay > 0 ? service.serverDelay*1000 : 0); /* Sleep in microseconds */
                     if(manageMessage(completeMessageReceived) == FALSE) {
                         close(service.connectionFD);
-                        initilizeService();
+                        initializeService();
                     }
-                    printf("(SERVER) Message received: %s", completeMessageReceived);
                     free(completeMessageReceived);
                     messageIsComplete=TRUE;
                 }
@@ -196,30 +195,36 @@ BOOL manageMessage(char mess[]){
 
 BOOL manageHelloMessage(char * message){
     if(checkHelloMessage(message)){
+        printf("(SERVER) Message received: %s", message);
         sendMessage("200 OK - Ready\n");
         service.phaseNumber = WAIT_PROBE_MESSAGE;
         return TRUE;
     }else{
+        printf("(SERVER) Message received: %s", message);
         sendMessage("404 ERROR - Invalid Hello message\n");
         return FALSE;
     }
 }
 BOOL manageProbeMessage(char * message){
     if(checkProbeMessage(message)){
+        printf("(SERVER) Message received: %s", message);
         sendMessage(message);
         return TRUE;
     } else {
+        printf("(SERVER) Message received: %s", message);
         sendMessage("404 ERROR - Invalid Measurement message\n");
         return FALSE;
     }
 }
 BOOL manageByeMessage(char * message){
     if(checkByeMessage(message)){
+        printf("(SERVER) Message received: %s", message);
         sendMessage("200 OK - Closing\n");
         close(service.connectionFD);
-        initilizeService();
+        initializeService();
         return TRUE;
     } else{
+        printf("(SERVER) Message received: %s", message);
         sendMessage("404 ERROR - Invalid Bye message\n");
         return FALSE;
     }

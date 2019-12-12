@@ -240,20 +240,14 @@ void sendProbeMessages(){
     free(completeMessageReceived);
     /* Calculate RTT of probe message */
     rttOfProbes[i] = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;        /* RTT in microseconds */
-    if(strcmp(service.measureType, "rtt") == 0){
-      printf("(CLIENT) RTT of probe message number %i - %f milliseconds\n\n", i+1, rttOfProbes[i]/1000);  
-    } else{
-      printf("(CLIENT) RTT of probe message number %i   - %f milliseconds\n", i+1, rttOfProbes[i]/1000);  
-      printf("(CLIENT) THPUT of probe message number %i - %f kilobits/seconds\n\n", i+1, 
-              (((float)numberOfBits)/1000) / (rttOfProbes[i]/1000000));
-    }
+    printf("(CLIENT) RTT of probe message number %i - %f milliseconds\n\n", i+1, rttOfProbes[i]/1000);  
   }
   /* Show response to the request of service, that could be RTT or THROUGHPUT */
   if(strcmp(service.measureType, "rtt") == 0){
     printf("Average RTT: %f milliseconds\n\n", evaluateRTT(rttOfProbes)/1000);
   } else{
-    /* printf("Number of bytes sent for each message: %d\n", numberOfBits/8); */
-    printf("Average RTT: %f milliseconds\n", (evaluateRTT(rttOfProbes)/1000));
+    /* printf("Number of bytes sent for each message: %d\n", numberOfBits/8); 
+    printf("Average RTT: %f milliseconds\n", (evaluateRTT(rttOfProbes)/1000)); */
     printf("Avarage THPUT: %f kilobits/seconds\n\n", 
           (((float)numberOfBits)/1000) / (evaluateRTT(rttOfProbes)/1000000));
   }
