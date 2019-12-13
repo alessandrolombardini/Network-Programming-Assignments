@@ -43,7 +43,7 @@ typedef struct node {
                                        1: Ready to accept service request | 
                                        2: Ready to echo back | 
                                        3: Ready response to bye */
-    int probeSequenceNumberAwaited; /* Probe sequence number awaited: have to be in phase 2 to be usefull*/
+    int probeSequenceNumberAwaited; /* Probe sequence number awaited: useful in phase 2 */
 } serviceNode;
 serviceNode service;
 
