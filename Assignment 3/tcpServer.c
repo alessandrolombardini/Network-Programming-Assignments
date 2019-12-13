@@ -195,37 +195,37 @@ BOOL manageMessage(char mess[]){
 
 BOOL manageHelloMessage(char * message){
     if(checkHelloMessage(message)){
-        printf("(SERVER) Message received: %s", message);
         sendMessage("200 OK - Ready\n");
+        printf("(SERVER) Message received: %s", message);
         service.phaseNumber = WAIT_PROBE_MESSAGE;
         return TRUE;
     }else{
-        printf("(SERVER) Message received: %s", message);
         sendMessage("404 ERROR - Invalid Hello message\n");
+        printf("(SERVER) Message received: %s", message);
         return FALSE;
     }
 }
 BOOL manageProbeMessage(char * message){
     if(checkProbeMessage(message)){
-        printf("(SERVER) Message received: %s", message);
         sendMessage(message);
+        printf("(SERVER) Message received: %s", message);
         return TRUE;
     } else {
-        printf("(SERVER) Message received: %s", message);
         sendMessage("404 ERROR - Invalid Measurement message\n");
+        printf("(SERVER) Message received: %s", message);
         return FALSE;
     }
 }
 BOOL manageByeMessage(char * message){
     if(checkByeMessage(message)){
-        printf("(SERVER) Message received: %s", message);
         sendMessage("200 OK - Closing\n");
+        printf("(SERVER) Message received: %s", message);
         close(service.connectionFD);
         initializeService();
         return TRUE;
     } else{
-        printf("(SERVER) Message received: %s", message);
         sendMessage("404 ERROR - Invalid Bye message\n");
+        printf("(SERVER) Message received: %s", message);
         return FALSE;
     }
 }
