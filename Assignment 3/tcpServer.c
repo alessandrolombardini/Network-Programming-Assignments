@@ -20,6 +20,14 @@
 #define TRUE 1
 #define FALSE 0
 
+/* Dichiarazioni delle risposte del server al client */
+/* HP := Hello Phase; MP := Measurement Phase; BP := Bye Phase; */
+#define HP_OK_MESSAGE "200 OK - Ready\n"
+#define HP_ERROR_MESSAGE "404 ERROR - Invalid Hello message\n"
+#define MP_ERROR_MESSAGE "404 ERROR - Invalid Measurement message\n"
+#define BP_OK_MESSAGE "200 OK - Closing\n"
+#define BP_ERROR_MESSAGE "404 ERROR - Invalid Bye message\n"
+
 BOOL manageMessage(char * mess);            /* Call to manage every message passed */
 BOOL checkHelloMessage(char * mess);        /* Check if the message passed is a valid hello message */
 BOOL checkProbeMessage(char mess[]);        /* Check if the message passed is a valid probe message */
@@ -195,12 +203,12 @@ BOOL manageMessage(char mess[]){
 
 BOOL manageHelloMessage(char * message){
     if(checkHelloMessage(message)){
-        sendMessage("200 OK - Ready\n");
+        sendMessage(HP_OK_MESSAGE);
         printf("(SERVER) Message received: %s", message);
         service.phaseNumber = WAIT_PROBE_MESSAGE;
         return TRUE;
     }else{
-        sendMessage("404 ERROR - Invalid Hello message\n");
+        sendMessage(HP_ERROR_MESSAGE);
         printf("(SERVER) Message received: %s", message);
         return FALSE;
     }
@@ -211,20 +219,20 @@ BOOL manageProbeMessage(char * message){
         printf("(SERVER) Message received: %s", message);
         return TRUE;
     } else {
-        sendMessage("404 ERROR - Invalid Measurement message\n");
+        sendMessage(MP_ERROR_MESSAGE);
         printf("(SERVER) Message received: %s", message);
         return FALSE;
     }
 }
 BOOL manageByeMessage(char * message){
     if(checkByeMessage(message)){
-        sendMessage("200 OK - Closing\n");
+        sendMessage(BP_OK_MESSAGE);
         printf("(SERVER) Message received: %s", message);
         close(service.connectionFD);
         initializeService();
         return TRUE;
     } else{
-        sendMessage("404 ERROR - Invalid Bye message\n");
+        sendMessage(BP_ERROR_MESSAGE);
         printf("(SERVER) Message received: %s", message);
         return FALSE;
     }
