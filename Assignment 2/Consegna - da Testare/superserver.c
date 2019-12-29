@@ -177,6 +177,7 @@ void manageMessage(char **env) {
 				// Son process
 				if (strcmp(services[i].transportProtocol, "tcp") == 0) {
 					socketToManage = newSocket;
+					close(services[i].socketFileDescriptor);
 				} else {
 					socketToManage = services[i].socketFileDescriptor;
 				}
