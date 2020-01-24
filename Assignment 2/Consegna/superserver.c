@@ -64,7 +64,7 @@ void handle_signal (int sig){
 void readConfiguration() {
 	FILE *fd;
 
-	fd = fopen("inetd.conf","r");
+	fd = fopen("inetd.conf.txt","r");
 	if(fd==NULL){
 		printf("Si è verificato un errore in apertura del file");
 		fflush(stdout);

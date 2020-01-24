@@ -18,7 +18,7 @@
 #define STRING_BYE_RESPONSE_NOT_OK     "404 ERROR - Invalid Bye message\n"          /* Negative response awaited from server after send the bye message */ 
 #define max(a,b) (((a) > (b)) ? (a) : (b))                        
 #define BUF_SIZE 1024                         /* Maximum buffer size */
-#define INPUT_FILE_NAME "init.conf"           /* Name of the file where the hello message is conteined */
+#define INPUT_FILE_NAME "init.conf.txt"           /* Name of the file where the hello message is conteined */
 #define PAYLOAD_CHARACTER 'x'                 /* Character of payload of messages that has to be sent */
 #define WAIT_HELLO_MESSAGE_RESPONSE  1        /* Phase: we have to send hello message and receive its response */
 #define WAIT_PROBE_MESSAGE_RESPONSE  2        /* Phase: we have to send probe message and receive its response */
